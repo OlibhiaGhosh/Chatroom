@@ -33,7 +33,6 @@ model Chatroom {
   creatorId   String
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
-  discardedAt DateTime?
 
   user        User     @relation(fields: [creatorId], references: [id])
   UserChatroom UserChatroom[]
@@ -45,7 +44,6 @@ model UserChatroom{
   chatroomId  String
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
-  discardedAt DateTime?
   user        User     @relation(fields: [userId], references: [id])
   chatroom    Chatroom @relation(fields: [chatroomId], references: [id])
 

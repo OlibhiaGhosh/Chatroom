@@ -9,7 +9,11 @@ async function signup(req: any, res: any) {
     if (!firstName || !lastName || !username || !email || !password) {
       return res.status(400).json({ message: "All fields are required" });
     }
-    if (!(email.match(/^[a-zA-Z0-9]+([._-][0-9a-zA-Z]+)*@[a-zA-Z0-9]+([.-][0-9a-zA-Z]+)*\.[a-zA-Z]{2,}$/))){
+    if (
+      !email.match(
+        /^[a-zA-Z0-9]+([._-][0-9a-zA-Z]+)*@[a-zA-Z0-9]+([.-][0-9a-zA-Z]+)*\.[a-zA-Z]{2,}$/
+      )
+    ) {
       return res.status(400).json({ message: "Invalid email format" });
     }
     if (password.length < 6) {
@@ -198,8 +202,4 @@ async function deleteUser(req: any, res: any) {
   }
 }
 // add logout function after session handling is implemented
-export {signup,
-login,
-updateUser,
-changePassword, 
-deleteUser}
+export { signup, login, updateUser, changePassword, deleteUser };
