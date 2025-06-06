@@ -30,7 +30,7 @@ async function createChatroom(req: any, res: any) {
   }
 }
 async function getChatroomData(req: any, res: any) {
-  const { chatroomId } = req.body;
+  const { chatroomId } = req.params; // Assuming chatroomId is passed as a URL parameter
   try {
     if (!chatroomId) {
       return res.status(400).json({ message: "Chatroom ID is required" });
