@@ -36,7 +36,7 @@ async function getChatroomData(req: any, res: any) {
       return res.status(400).json({ message: "Chatroom ID is required" });
     }
     const details = await prisma.chatroom.findUnique({
-      where: { id: chatroomId },
+      where: { room_id: chatroomId },
     });
     if (!details) {
       return res.status(404).json({ message: "Chatroom not found" });
@@ -62,7 +62,7 @@ async function getChatrooms(req: any, res: any) {
       return res.status(400).json({ message: "Creator ID is required" });
     }
     const details = await prisma.chatroom.findMany({
-      where: { id: creatorId },
+      where: { creatorId },
     });
     if (!details) {
       return res.status(404).json({ message: "No Chatroom found" });
@@ -88,7 +88,7 @@ async function deleteChatroom(req: any, res: any) {
       return res.status(400).json({ message: "Chatroom ID is required" });
     }
     const chatroom = await prisma.chatroom.delete({
-      where: { id: chatroomId },
+      where: { room_id: chatroomId },
     });
     if (!chatroom) {
       return res.status(404).json({ message: "Chatroom not found" });

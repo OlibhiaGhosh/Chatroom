@@ -28,7 +28,7 @@ model User {
 }
 
 model Chatroom {
-  id          String   @id @default(uuid())
+  room_id          String   @id @default(uuid())
   name        String
   creatorId   String
   isActive    Boolean  @default(true)
@@ -40,12 +40,12 @@ model Chatroom {
 
 model UserChatroom{
   id          String   @id @default(uuid())
-  userId      String
+  userId      String[]
   chatroomId  String
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   user        User     @relation(fields: [userId], references: [id])
-  chatroom    Chatroom @relation(fields: [chatroomId], references: [id])
+  chatroom    Chatroom @relation(fields: [chatroomId], references: [room_id])
 
 }
 

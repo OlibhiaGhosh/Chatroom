@@ -1,8 +1,9 @@
-import { on } from "events";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import { express } from "express";
 
-const httpServer = createServer();
+const app = express();
+const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
     origin: "http://localhost:5173",
@@ -10,6 +11,7 @@ const io = new Server(httpServer, {
   },
 });
 const onConnection = (socket) => {
+  console.log("New client connected:", socket.id);
   socket.on("message_sent", ({ roomId, message }) => {
     if (!message || !message.type) {
       console.error("Invalid message received:", message);
