@@ -1,12 +1,21 @@
 import { PrismaClient } from "../generated/prisma/client";
 import bcrypt from "bcryptjs";
+import { generateAccessAndRefreshToken } from "../utils/jwt_auth";
+import { CookieOptions } from "express";
+const dotenv = require("dotenv");
+dotenv.config();
 
 const prisma = new PrismaClient();
-
+const cookie_options= {
+    httpOnly: true,
+    secure: false, // Set to true if using HTTPS
+    sameSite: 'lax', // This is important for Chrome
+    path: '/' // Ensure cookie is available across your entire domain
+}
 async function signup(req: any, res: any) {
-  const { username, email, password, firstName, lastName } = req.body;
+  const { username, email, password, firstName, lastName, confirmPassword } = req.body;
   try {
-    if (!firstName || !lastName || !username || !email || !password) {
+    if (!firstName || !lastName || !username || !email || !password || !confirmPassword) {
       return res.status(400).json({ message: "All fields are required" });
     }
     if (
@@ -21,6 +30,11 @@ async function signup(req: any, res: any) {
         .status(400)
         .json({ message: "Password must be at least 6 characters" });
     }
+    if (firstName.length < 2 || lastName.length < 2) {
+      return res
+        .status(400)
+        .json({ message: "First name and last name must be at least 2 characters" });
+    }
     const dup_email = await prisma.user.findUnique({
       where: { email },
     });
@@ -32,6 +46,9 @@ async function signup(req: any, res: any) {
       return res
         .status(400)
         .json({ message: "Email or Username already exists" });
+    }
+    if(confirmPassword !== password) {
+      return res.status(400).json({ message: "Passwords do not match" });
     }
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
@@ -64,7 +81,7 @@ async function login(req: any, res: any) {
     if (!username || !password) {
       return res
         .status(400)
-        .json({ message: "Email and password are required" });
+        .json({ message: "Username and password are required" });
     }
     const user = await prisma.user.findUnique({
       where: { username },
@@ -77,7 +94,24 @@ async function login(req: any, res: any) {
       return res.status(401).json({ message: "Invalid Password" });
     }
     console.log("User logged in successfully");
-    return res.status(200).json({
+    const { accessToken, refreshToken } = generateAccessAndRefreshToken(user);
+    const response = await prisma.user.update({
+      data: {
+        refreshToken,
+      },
+      where: {
+        id: user.id,
+      }
+    })
+    if(!response){
+      return res.status(401).json({
+        message: "Failed to update user tokens"
+      })
+    }
+    return res.status(200)
+    .cookie("refreshToken", refreshToken, cookie_options)
+    .cookie("accessToken", accessToken, cookie_options)
+    .json({
       message: "Login successful",
       user: {
         id: user.id,
@@ -94,23 +128,44 @@ async function login(req: any, res: any) {
     });
   }
 }
+
+async function getUserdata(req: any, res: any) {
+  const userId = req.user.id;
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+    if (!user) {
+      return res.status(404).json({ message: "User not found!" });
+    }
+    console.log("User data retrieved successfully");
+    return res.status(200).json({
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+      },
+    });
+  } catch (error) {
+    console.error("Error retrieving user data:", error);
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+}
 async function updateUser(req: any, res: any) {
   if (!req.body) {
     return res.status(400).json({ message: "Request body is missing" });
   }
-  const { username, email, firstName, lastName } = req.body;
+  const body = req.body;
   const userId = req.params.id;
   try {
-    if (!username || !email || !firstName || !lastName) {
-      return res.status(400).json({ message: "All fields are required" });
-    }
     const user = await prisma.user.update({
       where: { id: userId },
       data: {
-        username,
-        email,
-        firstName,
-        lastName,
+        ...body,
       },
     });
     console.log("User updated successfully");
@@ -201,5 +256,27 @@ async function deleteUser(req: any, res: any) {
     console.error("Error deleting user:", error);
   }
 }
+async function logout(req: any, res: any) {
+  try{
+    const userId = req.user.id;
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        refreshToken: null,
+      },
+    });
+    console.log("User logged out successfully");
+    return res
+      .status(200)
+      .clearCookie("accessToken", cookie_options)
+      .clearCookie("refreshToken", cookie_options)
+      .json({ message: "Logout successful" });
+  } catch (error) {
+    console.error("Error logging out:", error);
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+}
 // add logout function after session handling is implemented
-export { signup, login, updateUser, changePassword, deleteUser };
+export { signup, login, updateUser, changePassword, deleteUser, getUserdata, logout };

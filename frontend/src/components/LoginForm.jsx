@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import Dashboard from './Dashboard';
 
 const LoginForm = () => {
   const navigate = useNavigate();
+  const [error, setError] = useState(null);
+  const [user, setUser] = useState({})
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
-    email: '',
+    username: '',
     password: '',
   });
 
@@ -21,18 +25,14 @@ const LoginForm = () => {
     setIsLoading(true);
 
     try {
-      localStorage.setItem('token', 'demo-token');
-      localStorage.setItem(
-        'user',
-        JSON.stringify({
-          id: 'user-123',
-          email: formData.email,
-          username: formData.email.split('@')[0],
-        })
-      );
+      const response = await axios.post("http://localhost:3000/api/auth/login", formData, {
+  withCredentials: true });
+      console.log('Login successful:', response.data);
+      setUser({ ...response.data.user });
       navigate('/dashboard');
     } catch (error) {
       console.error('Login failed:', error);
+      setError(error.message || 'Login failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -51,18 +51,18 @@ const LoginForm = () => {
           <form onSubmit={handleSubmit}>
             <div className="grid gap-4">
               <div className="grid gap-2">
-                <label htmlFor="email" className="text-white text-sm font-medium">
-                  Email
+                <label htmlFor="username" className="text-white text-sm font-medium">
+                  Username
                 </label>
                 <input
-                  id="email"
-                  name="email"
-                  placeholder="name@example.com"
-                  type="email"
+                  id="username"
+                  name="username"
+                  placeholder="bob123"
+                  type="text"
                   autoCapitalize="none"
-                  autoComplete="email"
+                  autoComplete="username"
                   autoCorrect="off"
-                  value={formData.email}
+                  value={formData.username}
                   onChange={handleChange}
                   required
                   className="w-full px-3 py-2 border border-green-800 bg-gray-800 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
@@ -94,6 +94,9 @@ const LoginForm = () => {
               >
                 {isLoading ? 'Logging in...' : 'Login'}
               </button>
+              {error && (
+                <div className="text-red-500 text-sm mt-2"> { error } </div>
+              )}
             </div>
           </form>
         </div>
