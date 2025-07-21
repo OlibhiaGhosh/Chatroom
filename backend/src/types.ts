@@ -19,3 +19,8 @@ export interface cookie_options{
     httpOnly: true,
     secure: true,
 }
+
+export interface members_schema{
+    userId: string;
+    username: string;
+}

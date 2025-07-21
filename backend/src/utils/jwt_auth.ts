@@ -3,7 +3,7 @@ const dotenv = require("dotenv");
 dotenv.config();
 import { user } from "../types";
 
-function generateAccessAndRefreshToken(user: user) {
+async function generateAccessAndRefreshToken(user: user) {
   const payload = {
     id: user.id,
     username: user.username,
@@ -19,11 +19,11 @@ function generateAccessAndRefreshToken(user: user) {
 
 async function verifyAccessToken( token: string) {
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = await jwt.verify(token, process.env.JWT_SECRET);
     return decoded;
   } catch (error) {
     console.error("Error verifying access token:", error);
-    throw new Error("Token verification failed");
+    throw error;
   }
 }
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
@@ -8,48 +9,96 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchUserData = async () => {
+    console.log("🚀 Dashboard useEffect mounted");
+    const fetchData = async () => {
+      console.log("🛫 fetchData() called");
+      setLoading(true); // Set loading at the start
       try {
-        const response = await axios.get(
+        console.log("🎯 About to call getUserdata");
+        const userResponse = await axios.post(
           "http://localhost:3000/api/auth/getUserdata",
+          undefined,
           {
             withCredentials: true,
           }
         );
-        const userId = response.data.user.id;
-        if (!userId) {
-          navigate("/login");
+        console.log("🎯 getUserdata response:", userResponse.data);
+        setUser(userResponse.data.user);
+
+        console.log("🎯 About to call getChatroomdatabyCreatorid");
+        const chatroomsResponse = await axios.post(
+          "http://localhost:3000/api/chatroom/get-chatroomdatabyCreatorid",
+          undefined,
+          {
+            withCredentials: true,
+          }
+        );
+        console.log(
+          "🎯 getChatroomdatabyCreatorid response:",
+          chatroomsResponse.data
+        );
+        setChatrooms(chatroomsResponse.data.chatrooms);
+        setLoading(false);
+        return;
+      } catch (error) {
+        console.log("🔥 IN DASHBOARD CATCH BLOCK");
+        console.log("RAW ERROR OBJECT:", error);
+        if (axios.isAxiosError(error) && error.response?.status === 401) {
+          console.log("Access token expired or invalid, attempting to refresh...");
+          try {
+            console.log("In the try block in dashboard for refreshToken");
+            const refreshToken = error.response.data.refreshToken;
+            console.log("refresh token from error.response.data.token: ", refreshToken)
+            if (!refreshToken) {
+              console.log("No refresh token provided, logging out.");
+              navigate("/login");
+              return;
+            }
+            const refreshResponse = await axios.post(
+              "http://localhost:3000/api/auth/refresh-token",
+              { refreshToken },
+              { withCredentials: true }
+            );
+
+            if (refreshResponse.status === 200) {
+              console.log("Token refreshed successfully, retrying requests...");
+              // Retry original requests
+              const userResponse = await axios.post(
+                "http://localhost:3000/api/auth/getUserdata",
+                {},
+                { withCredentials: true }
+              );
+              setUser(userResponse.data.user);
+
+              const chatroomsResponse = await axios.post(
+                "http://localhost:3000/api/chatroom/get-chatroomdatabyCreatorid",
+                {},
+                { withCredentials: true }
+              );
+              setChatrooms(chatroomsResponse.data.chatrooms);
+              setLoading(false)
+              return;
+              
+            }
+          } catch (refreshError) {
+            console.log("In the catch block in dashboard for refreshToken");
+            console.error(
+              "Failed to refresh token, logging out.",
+              refreshError
+            );
+            navigate("/login");
+            return;
+          }
+        } else {
+          console.log("In the else block in dashboard for refreshToken");
+          console.error("An unexpected error occurred:", error);
+          navigate("/");
           return;
         }
-        setUser(response.data.user);
-      } catch (error) {
-        console.error("Error fetching user data:", error);
-        navigate("/login");
       }
-      setLoading(false);
     };
-    fetchUserData();
-    // Mock data for chatrooms
-    setChatrooms([
-      {
-        id: "chat-1",
-        name: "Team Alpha",
-        createdAt: "2023-06-07T10:00:00Z",
-        memberCount: 3,
-      },
-      {
-        id: "chat-2",
-        name: "Project Discussion",
-        createdAt: "2023-06-02T14:30:00Z",
-        memberCount: 5,
-      },
-      {
-        id: "chat-3",
-        name: "Gaming Squad",
-        createdAt: "2023-05-28T20:15:00Z",
-        memberCount: 4,
-      },
-    ]);
+
+    fetchData();
   }, [navigate]);
 
   const handleCreateChatroom = () => {
@@ -87,15 +136,24 @@ const Dashboard = () => {
     });
   };
 
-  // if (!user) {
-  //   return <div className="flex min-h-screen items-center justify-center bg-black text-white">Loading...</div>;
-  // }
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-black text-white">
+        Loading...
+      </div>
+    );
+  }
 
-  return loading ? (
-    <div className="flex min-h-screen items-center justify-center bg-black text-white">
-      Loading...
-    </div>
-  ) : (
+  if (!user) {
+    // This will now only show if loading is complete AND the user is still not available
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-black text-white">
+        Could not load user data. Please try logging in again.
+      </div>
+    );
+  }
+
+  return (
     <div className="min-h-screen bg-gradient-to-b from-black to-gray-900 text-white">
       <header className="border-b border-green-800 bg-black p-4">
         <div className="container mx-auto flex items-center justify-between">
@@ -169,7 +227,7 @@ const Dashboard = () => {
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {chatrooms.map((chatroom) => (
               <div
-                key={chatroom.id}
+                key={chatroom.room_id}
                 className="border border-green-800 bg-gray-900 rounded-lg transition-all hover:shadow-md hover:shadow-green-900/20"
               >
                 <div className="p-6 pb-2">
@@ -214,12 +272,12 @@ const Dashboard = () => {
                         d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"
                       />
                     </svg>
-                    <span>{chatroom.memberCount} members active</span>
+                    <span>{chatroom.members.length} members active</span>
                   </div>
                 </div>
                 <div className="p-6">
                   <button
-                    onClick={() => handleJoinChatroom(chatroom.id)}
+                    onClick={() => handleJoinChatroom(chatroom.room_id)}
                     className="w-full py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-md hover:from-blue-700 hover:to-blue-800 transition-colors"
                   >
                     Join Chatroom

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
 const CreateChatroom = () => {
   const navigate = useNavigate();
@@ -25,7 +26,8 @@ const CreateChatroom = () => {
     setIsLoading(true);
 
     try {
-      const newChatroomId = `chat-${Date.now().toString(36)}`;
+      const response = await axios.post('http://localhost:3000/api/chatroom/create-chatroom', chatroomData, {withCredentials: true});
+      const newChatroomId = response.data.chatroom.room_id;
       const link = `${window.location.origin}/chatroom/${newChatroomId}`;
 
       setChatroomId(newChatroomId);
@@ -33,7 +35,7 @@ const CreateChatroom = () => {
       setShowLinkDialog(true);
     } catch (error) {
       console.error('Failed to create chatroom:', error);
-    } finally {
+    } finally { 
       setIsLoading(false);
     }
   };

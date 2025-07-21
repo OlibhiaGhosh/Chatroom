@@ -1,8 +1,11 @@
 import express from 'express';
-import { createChatroom, getChatroomData, getChatrooms, deleteChatroom} from '../controllers/chatrooms.controller';
+import { createChatroom, getChatroomDatabyChatroomId, getChatroomDatabyCreatorId, joinChatroom, getChatrooms, deleteChatroom} from '../controllers/chatrooms.controller';
+import { authMiddleware } from '../middleware/auth.middleware';
 const router = express.Router();
-router.post('/create_chatroom', createChatroom); //Add middleware to protect this route using jwt session in middleware
-router.post('/get_chatroomdata/?id', getChatroomData); //Add middleware to protect this route using jwt session in middleware
-router.post('/get_chatrooms', getChatrooms); //Add middleware to protect this route using jwt session in middleware
-router.delete('/delete_chatroom', deleteChatroom); //Add middleware to protect this route using jwt session in middleware
+router.post('/create-chatroom', authMiddleware, createChatroom);
+router.get('/get-chatroomdatabyChatroomid/:id', authMiddleware, getChatroomDatabyChatroomId);
+router.post('/get-chatroomdatabyCreatorid', authMiddleware, getChatroomDatabyCreatorId);
+router.post('/join-chatroom', authMiddleware, joinChatroom);
+router.post('/get-chatrooms', authMiddleware, getChatrooms);
+router.delete('/delete-chatroom', authMiddleware, deleteChatroom);
 export default router;

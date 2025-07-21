@@ -26,7 +26,7 @@ const LoginForm = () => {
 
     try {
       const response = await axios.post("http://localhost:3000/api/auth/login", formData, {
-  withCredentials: true });
+      withCredentials: true });
       console.log('Login successful:', response.data);
       setUser({ ...response.data.user });
       navigate('/dashboard');

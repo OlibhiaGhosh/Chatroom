@@ -1,22 +1,24 @@
+import { error } from "console";
 import { PrismaClient } from "../generated/prisma/client";
 
 const prisma = new PrismaClient();
 async function createChatroom(req: any, res: any) {
-  const { name, creatorId } = req.body;
+  const { id, username } = req.user;
+  const { name, description } = req.body;
   try {
-    if (!name || !creatorId) {
-      return res
-        .status(400)
-        .json({ message: "Name and creatorId are required" });
+    if (!name || !id) {
+      return res.status(400).json({ message: "Name and ID are required" });
     }
     const chatroom = await prisma.chatroom.create({
       data: {
         name,
-        creatorId,
+        description: description || null,
+        creatorId: id,
+        members: [{ userId: id, username: username }],
       },
     });
     console.log(
-      "Chatroom: " + name + " created successfully by user ID: " + creatorId
+      "Chatroom: " + name + " created successfully by user ID: " + id
     );
     return res.status(201).json({
       message: "Chatroom created successfully",
@@ -29,17 +31,48 @@ async function createChatroom(req: any, res: any) {
     });
   }
 }
-async function getChatroomData(req: any, res: any) {
-  const { chatroomId } = req.params; // Assuming chatroomId is passed as a URL parameter
+async function getChatroomDatabyChatroomId(req: any, res: any) {
+  const chatroomId = await req.params.id; // Assuming chatroomId is passed as a URL parameter
+  const { id, username } = await req.user; // Get user ID from the request
+  console.log("Chatroom ID:", chatroomId);
+  console.log("User ID:", id);
   try {
     if (!chatroomId) {
       return res.status(400).json({ message: "Chatroom ID is required" });
     }
+
     const details = await prisma.chatroom.findUnique({
       where: { room_id: chatroomId },
     });
     if (!details) {
       return res.status(404).json({ message: "Chatroom not found" });
+    }
+    if (!details.members.some((member: any) => member.userId === id)) {
+      try {
+        console.log("User with ID:", id, "is not a member of chatroom:", details.name);
+        // User is not a member, so we allow them to join the chatroom
+        const chatroomDetails = await prisma.chatroom.update({
+          where: { room_id: chatroomId },
+          data: {
+            members: {
+              set: [
+                ...(details.members as any[]),
+                {
+                  userId: id,
+                  username: username,
+                },
+              ],
+            },
+          },
+        });
+        console.log("User with ID:", id, "joined chatroom:", details.name);
+        throw new Error("Error joining chatroom");
+      } catch (error) {
+        console.error("Error joining chatroom:", error);
+        return res.status(500).json({
+          message: "Internal server error",
+        });
+      }
     }
     return res.status(200).json({
       message:
@@ -47,12 +80,81 @@ async function getChatroomData(req: any, res: any) {
         details.name +
         " created by user ID: " +
         details.creatorId,
+      chatroomDetails: details,
     });
   } catch (error) {
     console.error("Error getting chatroom data:", error);
     return res.status(500).json({
       message: "Internal server error",
     });
+  }
+}
+async function getChatroomDatabyCreatorId(req: any, res: any) {
+  const { id: userId } = req.user; 
+  try {
+    if (!userId) {
+      throw new Error("User ID is required");
+    }
+    const details = await prisma.chatroom.findMany({
+      where: { creatorId: userId },
+    });
+    if (!details) {
+      return res.status(404).json({ message: "Chatroom not found" });
+    }
+    return res.status(200).json({
+      message: "chatroom details retrieved successfully",
+      chatrooms: details,
+    });
+  } catch (error) {
+    console.error("Error getting chatroom data:", error);
+    const refreshToken = req.body.refreshToken;
+    if (!refreshToken) {
+      return res.status(401).json({ message: "No refresh token provided", refreshToken: null });}
+    return res.status(500).json({
+      message: "Internal server error",
+      refreshToken: refreshToken,
+    });
+  }
+}
+async function joinChatroom(req: any, res: any) {
+  const { chatroomId } = req.body;
+  const { id, username } = req.user;
+  try {
+    if (!id || !username) {
+      return res
+        .status(401)
+        .json({ message: "Username and User ID are required" });
+    }
+    if (!chatroomId) {
+      return res.status(400).json({ message: "Chatroom ID is required" });
+    }
+    const chatroom = await prisma.chatroom.findUnique({
+      where: { room_id: chatroomId },
+    });
+    if (!chatroom) {
+      return res.status(404).json({ message: "Chatroom not found" });
+    }
+    const chatroomDetails = await prisma.chatroom.update({
+      where: { room_id: chatroomId },
+      data: {
+        members: {
+          set: [
+            ...(chatroom.members as any[]),
+            {
+              userId: id,
+              username: username,
+            },
+          ],
+        },
+      },
+    });
+    console.log("User with ID:", id, "joined chatroom:", chatroom.name);
+    return res.status(200).json({
+      message: "User " + username + " joined the chatroom successfully",
+      chatroomDetails,
+    });
+  } catch (error) {
+    console.error("Error joining chatroom:", error);
   }
 }
 async function getChatrooms(req: any, res: any) {
@@ -105,4 +207,11 @@ async function deleteChatroom(req: any, res: any) {
     });
   }
 }
-export { createChatroom, getChatroomData, getChatrooms, deleteChatroom };
+export {
+  createChatroom,
+  getChatroomDatabyChatroomId,
+  getChatroomDatabyCreatorId,
+  joinChatroom,
+  getChatrooms,
+  deleteChatroom,
+};

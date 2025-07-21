@@ -1,21 +1,42 @@
 import { PrismaClient } from "../generated/prisma/client";
 import bcrypt from "bcryptjs";
-import { generateAccessAndRefreshToken } from "../utils/jwt_auth";
-import { CookieOptions } from "express";
+import {
+  generateAccessAndRefreshToken,
+  verifyAccessToken,
+} from "../utils/jwt_auth";
+import jwt from "jsonwebtoken";
 const dotenv = require("dotenv");
 dotenv.config();
 
 const prisma = new PrismaClient();
-const cookie_options= {
-    httpOnly: true,
-    secure: false, // Set to true if using HTTPS
-    sameSite: 'lax', // This is important for Chrome
-    path: '/' // Ensure cookie is available across your entire domain
-}
+const cookie_options = {
+  httpOnly: true,
+  secure: false, // Set to true if using HTTPS
+  sameSite: "lax", // This is important for Chrome
+  path: "/", // Ensure cookie is available across your entire domain
+  maxAge: 15 * 60 * 1000, // 15 minutes for access token
+};
+
+const refreshToken_cookie_options = {
+  httpOnly: true,
+  secure: false, // Set to true if using HTTPS
+  sameSite: "lax", // This is important for Chrome
+  path: "/", // Ensure cookie is available across your entire domain
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days for refresh token
+};
+
 async function signup(req: any, res: any) {
-  const { username, email, password, firstName, lastName, confirmPassword } = req.body;
+  const { username, email, password, firstName, lastName, confirmPassword } =
+    req.body;
   try {
-    if (!firstName || !lastName || !username || !email || !password || !confirmPassword) {
+    if (
+      !firstName ||
+      !lastName ||
+      !username ||
+      !email ||
+      !password ||
+      !confirmPassword
+    ) {
       return res.status(400).json({ message: "All fields are required" });
     }
     if (
@@ -31,9 +52,9 @@ async function signup(req: any, res: any) {
         .json({ message: "Password must be at least 6 characters" });
     }
     if (firstName.length < 2 || lastName.length < 2) {
-      return res
-        .status(400)
-        .json({ message: "First name and last name must be at least 2 characters" });
+      return res.status(400).json({
+        message: "First name and last name must be at least 2 characters",
+      });
     }
     const dup_email = await prisma.user.findUnique({
       where: { email },
@@ -47,7 +68,7 @@ async function signup(req: any, res: any) {
         .status(400)
         .json({ message: "Email or Username already exists" });
     }
-    if(confirmPassword !== password) {
+    if (confirmPassword !== password) {
       return res.status(400).json({ message: "Passwords do not match" });
     }
     const salt = await bcrypt.genSalt(10);
@@ -94,33 +115,36 @@ async function login(req: any, res: any) {
       return res.status(401).json({ message: "Invalid Password" });
     }
     console.log("User logged in successfully");
-    const { accessToken, refreshToken } = generateAccessAndRefreshToken(user);
+    const { accessToken, refreshToken } = await generateAccessAndRefreshToken(
+      user
+    );
     const response = await prisma.user.update({
       data: {
         refreshToken,
       },
       where: {
         id: user.id,
-      }
-    })
-    if(!response){
-      return res.status(401).json({
-        message: "Failed to update user tokens"
-      })
-    }
-    return res.status(200)
-    .cookie("refreshToken", refreshToken, cookie_options)
-    .cookie("accessToken", accessToken, cookie_options)
-    .json({
-      message: "Login successful",
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
       },
     });
+    if (!response) {
+      return res.status(401).json({
+        message: "Failed to update user tokens",
+      });
+    }
+    return res
+      .status(200)
+      .cookie("refreshToken", refreshToken, refreshToken_cookie_options)
+      .cookie("accessToken", accessToken, cookie_options)
+      .json({
+        message: "Login successful",
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+        },
+      });
   } catch (error) {
     console.error("Error logging in:", error);
     return res.status(500).json({
@@ -130,7 +154,45 @@ async function login(req: any, res: any) {
 }
 
 async function getUserdata(req: any, res: any) {
-  const userId = req.user.id;
+  // Get user data from the access token via middleware
+  try {
+    const userId = req.user.id;
+    if (!userId) {
+      throw new Error("User ID is required");
+    }
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+    if (!user) {
+      return res.status(404).json({ message: "User not found!" });
+    }
+    console.log("User data retrieved successfully");
+    return res.status(200).json({
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+      },
+    });
+  } catch (error) {
+    console.error("Error retrieving user data:", error);
+    const refreshToken = req.body.refreshToken;
+    if (!refreshToken) {
+      return res.status(401).json({ message: "No refresh token provided" , refreshToken: null});}
+    return res.status(500).json({
+      message: "Internal server error",
+      refreshToken: refreshToken,
+    });
+  }
+}
+async function getUserdatabyId(req: any, res: any) {
+  const userId = req.params.id;
+  console.log("User ID from request body:", userId);
+  if (!userId) {
+    return res.status(400).json({ message: "User ID is required" });
+  }
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -257,7 +319,7 @@ async function deleteUser(req: any, res: any) {
   }
 }
 async function logout(req: any, res: any) {
-  try{
+  try {
     const userId = req.user.id;
     await prisma.user.update({
       where: { id: userId },
@@ -278,5 +340,69 @@ async function logout(req: any, res: any) {
     });
   }
 }
+async function refreshToken(req: any, res: any) {
+  console.log("🔐 refreshToken hit!");
+  console.log("   req.cookies =", req.cookies);
+  console.log("   refreshToken =", req.cookies.refreshToken);
+  try {
+    console.log("Access Token verification failed, trying to refresh token:");
+    const refreshToken = req.body.refreshToken || req.data.refreshToken;
+    if (!refreshToken) {
+      return res.status(401).json({ message: "No refresh token provided" });
+    }
+    const decoded: any = await jwt.verify(
+      refreshToken,
+      process.env.JWT_SECRET || ""
+    );
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.id },
+    });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    if (!user.refreshToken) {
+      return res.status(403).json({ message: "No refresh token found" });
+    }
+    if (user.refreshToken != refreshToken) {
+      return res.status(403).json({ message: "Invalid refresh token" });
+    }
+    const newTokens = await generateAccessAndRefreshToken(user);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        refreshToken: newTokens.refreshToken,
+      },
+    });
+    req.user = await verifyAccessToken(newTokens.accessToken);
+    console.log("Tokens refreshed successfully");
+    res.cookie("accessToken", newTokens.accessToken, cookie_options);
+    res.cookie(
+      "refreshToken",
+      newTokens.refreshToken,
+      refreshToken_cookie_options
+    );
+    return res.status(200).json({
+      message: "Tokens refreshed successfully",
+      user: {
+        id: user.id,
+        username: user.username,
+      },
+    });
+  } catch (error) {
+    console.error("Error in refreshToken function:", error);
+    res.status(401).json({ message: "Authentication failed" });
+    return;
+  }
+}
 // add logout function after session handling is implemented
-export { signup, login, updateUser, changePassword, deleteUser, getUserdata, logout };
+export {
+  signup,
+  login,
+  updateUser,
+  changePassword,
+  deleteUser,
+  getUserdata,
+  getUserdatabyId,
+  refreshToken,
+  logout,
+};

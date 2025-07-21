@@ -4,7 +4,7 @@ import LoginForm from './components/LoginForm';
 import SignupForm from './components/SignupForm';
 import Dashboard from './components/Dashboard';
 import CreateChatroom from './components/CreateChatroom';
-import ChatRoom from './components/ChatRoom';
+import ChatRoom from './components/Chatroom';
 import './App.css';
 
 function App() {

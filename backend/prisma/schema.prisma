@@ -3,8 +3,6 @@
 
 // Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
-
 generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
@@ -16,42 +14,43 @@ datasource db {
 }
 
 model User {
-  id         String      @id @default(uuid())
-  username   String   @unique
-  email      String   @unique
-  password   String
-  firstName  String
-  lastName   String
+  id           String  @id @default(uuid())
+  username     String  @unique
+  email        String  @unique
+  password     String
+  firstName    String
+  lastName     String
   refreshToken String? @unique
 
-  chatrooms  Chatroom[]
-  UserChatroom UserChatroom[]
+  chatrooms       Chatroom[]
+  UserChatroom    UserChatroom[]
 }
 
 model Chatroom {
-  room_id          String   @id @default(uuid())
+  room_id     String   @id @default(uuid())
   name        String
+  description String?
   creatorId   String
+  members     Json[] // Each element: { userId: String, username: String }
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
 
-  user        User     @relation(fields: [creatorId], references: [id])
+  user         User           @relation(fields: [creatorId], references: [id])
   UserChatroom UserChatroom[]
 }
 
-model UserChatroom{
-  id          String   @id @default(uuid())
-  userId      String
-  chatroomId  String
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  user        User     @relation(fields: [userId], references: [id])
-  chatroom    Chatroom @relation(fields: [chatroomId], references: [room_id])
-
+model UserChatroom {
+  id         String   @id @default(uuid())
+  userId     String
+  chatroomId String
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+  chatroom   Chatroom @relation(fields: [chatroomId], references: [room_id])
 }
 
 model message {
-  id      String   @id @default(uuid())
+  id         String @id @default(uuid())
   chatroomId String
-  content Json /// Each element: { user_id: String, message: String }
+  content    Json /// Each element: { user_id: String, message: String }
 }

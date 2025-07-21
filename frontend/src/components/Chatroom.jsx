@@ -1,40 +1,49 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-
+import axios from 'axios';
 const ChatRoom = () => {
   const navigate = useNavigate();
   const { id: chatroomId } = useParams();
-  const [user, setUser] = useState(null);
+  const [creator, setCreator] = useState(null);
   const [chatroomName, setChatroomName] = useState('Loading...');
   const [messages, setMessages] = useState([]);
   const [members, setMembers] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [isConnected, setIsConnected] = useState(false);
   const [showMobileMembers, setShowMobileMembers] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const userData = localStorage.getItem('user');
+    const fetchChatroomdata = async () => {
+      try {
+        console.log("Chatroom ID in frontend side:", chatroomId);
+        const response = await axios.get(`http://localhost:3000/api/chatroom/get-chatroomdatabyChatroomid/${chatroomId}`,{}, { withCredentials: true });
+        const chatroomData = await response.data.chatroomDetails;
+        console.log("Chatroom Data under fetchChatroomData",chatroomData.creatorId)
+        const creatorData = await axios.post(`http://localhost:3000/api/auth/getUserdatabyId/${chatroomData.creatorId}`,{}, { withCredentials: true });
+        setCreator(creatorData.data.user.username|| null);
+        setChatroomName(chatroomData.name || 'Untitled Chatroom');
+        setIsConnected(true);
+      } catch (error) {
+        console.error('Failed to fetch chatroom data:', error);
+        setError(error.message || 'Failed to fetch chatroom data');
+        setIsConnected(false);
+      }
+    };
 
-    if (!token || !userData) {
-      navigate('/login');
-      return;
-    }
-
-    setUser(JSON.parse(userData));
-    setChatroomName('Project Discussion');
-    setIsConnected(true);
-
-    // Mock members data
-    setMembers([
-      { id: 'user-123', username: 'You', online: true },
-      { id: 'user-456', username: 'Alice', online: true },
-      { id: 'user-789', username: 'Bob', online: true },
-      { id: 'user-101', username: 'Charlie', online: false },
-      { id: 'user-102', username: 'David', online: false },
-    ]);
-
+    fetchChatroomdata();
+    const fetchMembers = async () => {
+      try {
+        const membersResponse = await axios.get(`http://localhost:3000/api/chatroom/get-chatroomdatabyChatroomid/${chatroomId}`, { withCredentials: true });
+        setMembers(membersResponse.data.chatroomDetails.members || []);
+        console.log("Members fetched:", membersResponse.data.chatroomDetails.members);
+      } catch (error) {
+        console.error('Failed to fetch members:', error);
+      }
+    };
+    fetchMembers();
     // Mock messages data
     setMessages([
       {
@@ -71,7 +80,7 @@ const ChatRoom = () => {
       };
       setMessages((prev) => [...prev, newMsg]);
     }, 2000);
-
+    setLoading(false);
     return () => clearTimeout(timer);
   }, [chatroomId, navigate]);
 
@@ -112,7 +121,14 @@ const ChatRoom = () => {
     return members.filter((member) => member.online).length;
   };
 
-  if (!user || !isConnected) {
+  if (!creator || !isConnected) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-black text-white">
+        <p>{error}</p>
+      </div>
+    );
+  }
+  if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-black text-white">
         <p>Connecting to chatroom...</p>
@@ -167,9 +183,10 @@ const ChatRoom = () => {
       <div className="flex flex-1 overflow-hidden">
         {/* Messages Area */}
         <div className="flex-1 overflow-y-auto p-4">
+          <div className='my-4 text-center text-gray-500'>Created by: {creator.username || 'Unknown'}</div>
           <div className="flex flex-col gap-4">
             {messages.map((message) => {
-              const isOwnMessage = message.senderId === user.id;
+              const isOwnMessage = message.senderId === creator.id;
               const sender = members.find((m) => m.id === message.senderId);
 
               return (
@@ -216,7 +233,7 @@ const ChatRoom = () => {
                   {member.username.charAt(0).toUpperCase()}
                 </div>
                 <span>
-                  {member.username} {member.id === user.id && '(You)'}
+                  {member.username} {member.id === creator.id && '(You)'}
                 </span>
               </div>
             ))}
