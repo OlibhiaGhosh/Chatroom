@@ -19,6 +19,8 @@ const ChatRoom = () => {
   useEffect(() => {
     let isMounted = true; // Set the mounted flag to true
     const controller = new AbortController(); // on unmounting all the pending requests will be aborted
+    console.log(`Chatroom ID: ${chatroomId}`);
+    
     const fetchChatroomdata = async () => {
       setLoading(true); // Set loading at the start
       try {
@@ -28,10 +30,26 @@ const ChatRoom = () => {
             signal: controller.signal, // Pass the abort signal to the request
           }
         );
-        console.log("🎯 getUserdata response:", chatroomResponse.data);
-        isMounted && setChatroomName(chatroomResponse?.data?.chatroom?.name);
-        isMounted && setCreator(chatroomResponse?.data?.chatroom?.creatorId);
-        isMounted && setMembers(chatroomResponse?.data?.chatroom?.members);
+        console.log("🎯 getChatroomdata response:", chatroomResponse.data);
+        try{
+        const userResponse = await axiosPrivate.post(
+          `/api/auth/getUserdatabyId/${chatroomResponse.data.chatroomDetails.creatorId}`,
+          {
+            signal: controller.signal, // Pass the abort signal to the request
+          }
+        );
+        console.log("🎯 getUserdatabyId response:", userResponse.data);
+        console.log("Creator username:", userResponse?.data?.user?.username);
+        isMounted && setCreator(userResponse?.data?.user?.username);
+        
+      } catch (error) {
+        console.error("Error fetching creator data:", error);
+        isMounted && setError("Failed to fetch creator data.");
+        navigate('/login', { state: { from: location }, replace: true });
+      }
+        isMounted && setChatroomName(chatroomResponse?.data?.chatroomDetails?.name);
+        isMounted && setMembers(chatroomResponse?.data?.chatroomDetails?.members);
+        isMounted && setIsConnected(true);
         isMounted && setLoading(false);
         return;
       } catch (error) {
@@ -135,7 +153,7 @@ const ChatRoom = () => {
       </div>
     );
   }
-
+console.log("Creator:", creator);
   return (
     <div className="flex h-screen flex-col bg-gradient-to-b from-black to-gray-900 text-white">
       {/* Header */}
@@ -183,7 +201,7 @@ const ChatRoom = () => {
       <div className="flex flex-1 overflow-hidden">
         {/* Messages Area */}
         <div className="flex-1 overflow-y-auto p-4">
-          <div className='my-4 text-center text-gray-500'>Created by: {creator.username || 'Unknown'}</div>
+          <div className='my-4 text-center text-gray-500'>Created by: {creator}</div>
           <div className="flex flex-col gap-4">
             {messages.map((message) => {
               const isOwnMessage = message.senderId === creator.id;
@@ -225,7 +243,7 @@ const ChatRoom = () => {
         {/* Members Sidebar (Desktop) */}
         <div className="hidden w-64 border-l border-green-800 bg-gray-900 p-4 md:block">
           <h2 className="mb-4 text-lg font-semibold text-green-500">Members ({members.length})</h2>
-          <div className="flex flex-col gap-3">
+          <div key="members-list" className="flex flex-col gap-3">
             {members.map((member) => (
               <div key={member.id} className="flex items-center gap-2">
                 <div className={`h-2 w-2 rounded-full ${member.online ? 'bg-green-500' : 'bg-gray-500'}`} />

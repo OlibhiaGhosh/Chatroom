@@ -332,7 +332,6 @@ async function logout(req: any, res: any) {
     console.log("User logged out successfully");
     return res
       .status(200)
-      .clearCookie("accessToken", cookie_options)
       .clearCookie("refreshToken", cookie_options)
       .json({ message: "Logout successful" });
   } catch (error) {

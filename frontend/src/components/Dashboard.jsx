@@ -57,17 +57,22 @@ const Dashboard = () => {
   };
 
   const handleLogout = () => {
+    const controller = new AbortController();
     try {
-      const response = axios.post(
-        "http://localhost:3000/api/auth/logout",
-        {},
-        { withCredentials: true }
+      const response = axiosPrivate.post(
+        "/api/auth/logout",
+        {
+            signal: controller.signal, // Pass the abort signal to the request
+          }
       );
       console.log("Logout successful:", response.data);
+      navigate("/login", { replace: true });
     } catch (error) {
       console.error("Logout failed:", error);
     }
-    navigate("/");
+    return () => {
+      controller.abort(); // Abort the logout request on unmount
+    };
   };
 
   const handleDeleteChatroom = (id) => {
