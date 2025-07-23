@@ -3,7 +3,7 @@ import { createChatroom, getChatroomDatabyChatroomId, getChatroomDatabyCreatorId
 import { authMiddleware } from '../middleware/auth.middleware';
 const router = express.Router();
 router.post('/create-chatroom', authMiddleware, createChatroom);
-router.get('/get-chatroomdatabyChatroomid/:id', authMiddleware, getChatroomDatabyChatroomId);
+router.post('/get-chatroomdatabyChatroomid/:id', authMiddleware, getChatroomDatabyChatroomId);
 router.post('/get-chatroomdatabyCreatorid', authMiddleware, getChatroomDatabyCreatorId);
 router.post('/join-chatroom', authMiddleware, joinChatroom);
 router.post('/get-chatrooms', authMiddleware, getChatrooms);

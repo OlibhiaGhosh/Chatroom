@@ -1,35 +1,26 @@
-import { verifyAccessToken } from "../utils/jwt_auth";
+const jwt = require("jsonwebtoken");
 const dotenv = require("dotenv");
 dotenv.config();
 
 async function authMiddleware(req: any, res: any, next: any) {
   console.log("🔐 authMiddleware hit!");
-  console.log("   req.cookies =", req.cookies);
-  console.log("   accessToken =", req.cookies.accessToken);
-  try {
-    console.log("authMiddleware called");
-    const token = req.cookies.accessToken;
-    console.log("Access Token from cookies inside middleware:", token);
+    const token = req.headers.authorization?.split(" ")[1];
+    console.log("Access Token from headers inside middleware:",token);
     if (!token) {
-      throw new Error("No token provided");
+      return res.status(401).json({ message: "No access token provided" });
     }
-    const decoded = await verifyAccessToken(token);
-    req.user = decoded;
-    next();
-    return;
-  } catch (error) {
-    console.error("Error in authMiddleware, access token might be expired:", error);
-    const refreshToken = req.cookies.refreshToken;
-    if (!refreshToken) {
-      req.refreshToken = null;
-      return res.status(401).json({ message: "No refresh token provided" , refreshToken: null});
-    }
-    req.refreshToken = refreshToken;
-    console.log("refreshToken set in body:", refreshToken); 
-    return res
-      .status(401)
-      .json({ message: "Authentication failed. Invalid or expired token.", refreshToken: refreshToken });
-  }
+    jwt.verify(
+        token,
+        process.env.JWT_SECRET,
+        (err:any, decoded:any) => {
+            if (err) return res.status(403).json({ message: "Invalid or expired access token" }); //invalid token
+            req.user = decoded;
+            console.log("Returning from auth middleware (req.user): ", req.user)
+            console.log("Returning from auth middleware (decoded): ", decoded
+            )
+            next();
+        }
+    );
 }
 
 export { authMiddleware };

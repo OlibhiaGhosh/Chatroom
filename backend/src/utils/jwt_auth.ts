@@ -3,28 +3,33 @@ const dotenv = require("dotenv");
 dotenv.config();
 import { user } from "../types";
 
-async function generateAccessAndRefreshToken(user: user) {
+async function generateAccessToken(user: user) {
   const payload = {
     id: user.id,
     username: user.username,
   };
   const accessToken = jwt.sign(payload, process.env.JWT_SECRET, {
-    expiresIn: "15m",
+    expiresIn: "30s",
   });
-  const refreshToken = jwt.sign(payload, process.env.JWT_SECRET, {
-    expiresIn: "7d",
-  });
-  return { accessToken, refreshToken };
-}
-
-async function verifyAccessToken( token: string) {
-  try {
-    const decoded = await jwt.verify(token, process.env.JWT_SECRET);
-    return decoded;
-  } catch (error) {
-    console.error("Error verifying access token:", error);
-    throw error;
+  if (!accessToken) {
+    throw new Error("Failed to generate access token");
   }
+  return { accessToken };
 }
 
-export { generateAccessAndRefreshToken, verifyAccessToken };
+async function generateRefreshToken(user: user) {
+  const payload = {
+    id: user.id,
+    username: user.username,
+  };
+  const refreshToken = jwt.sign(payload, process.env.JWT_SECRET, {
+    expiresIn: "1h",
+  });
+  if (!refreshToken) {
+    throw new Error("Failed to generate refresh token");
+  }
+  return { refreshToken };
+};
+
+
+export { generateAccessToken, generateRefreshToken };

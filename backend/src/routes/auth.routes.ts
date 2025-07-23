@@ -10,5 +10,5 @@ router.put('/update/:id', authMiddleware, updateUser);
 router.put('/change-password/:id', authMiddleware, changePassword);
 router.delete('/delete/:id', authMiddleware, deleteUser);
 router.post('/logout', authMiddleware, logout)
-router.post('/refresh-token', refreshToken)
+router.get('/refresh-token', refreshToken)
 export default router;

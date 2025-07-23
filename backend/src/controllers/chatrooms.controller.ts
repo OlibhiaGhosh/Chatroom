@@ -1,5 +1,5 @@
 import { error } from "console";
-import { PrismaClient } from "../generated/prisma/client";
+import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 async function createChatroom(req: any, res: any) {
@@ -38,7 +38,7 @@ async function getChatroomDatabyChatroomId(req: any, res: any) {
   console.log("User ID:", id);
   try {
     if (!chatroomId) {
-      return res.status(400).json({ message: "Chatroom ID is required" });
+      return res.status(401).json({ message: "Chatroom ID is required" });
     }
 
     const details = await prisma.chatroom.findUnique({
@@ -65,8 +65,14 @@ async function getChatroomDatabyChatroomId(req: any, res: any) {
             },
           },
         });
+        if (!chatroomDetails) {
+          return res.status(404).json({ message: "Chatroom members could not be updated" });
+        }
         console.log("User with ID:", id, "joined chatroom:", details.name);
-        throw new Error("Error joining chatroom");
+        return res.status(200).json({
+          message: "User " + username + " joined the chatroom successfully",
+          chatroomDetails,
+        });
       } catch (error) {
         console.error("Error joining chatroom:", error);
         return res.status(500).json({
@@ -93,7 +99,7 @@ async function getChatroomDatabyCreatorId(req: any, res: any) {
   const { id: userId } = req.user; 
   try {
     if (!userId) {
-      throw new Error("User ID is required");
+      return res.status(401).json({ message: "User ID is required" });
     }
     const details = await prisma.chatroom.findMany({
       where: { creatorId: userId },
@@ -101,18 +107,15 @@ async function getChatroomDatabyCreatorId(req: any, res: any) {
     if (!details) {
       return res.status(404).json({ message: "Chatroom not found" });
     }
+    console.log("Chatroom dAta retrieved successfully for user ID:", userId);
     return res.status(200).json({
       message: "chatroom details retrieved successfully",
       chatrooms: details,
     });
   } catch (error) {
     console.error("Error getting chatroom data:", error);
-    const refreshToken = req.body.refreshToken;
-    if (!refreshToken) {
-      return res.status(401).json({ message: "No refresh token provided", refreshToken: null });}
     return res.status(500).json({
       message: "Internal server error",
-      refreshToken: refreshToken,
     });
   }
 }
@@ -157,7 +160,7 @@ async function joinChatroom(req: any, res: any) {
     console.error("Error joining chatroom:", error);
   }
 }
-async function getChatrooms(req: any, res: any) {
+async function getChatrooms(req: any, res: any) {// Extra unnecessary route
   const { creatorId } = req.body;
   try {
     if (!creatorId) {

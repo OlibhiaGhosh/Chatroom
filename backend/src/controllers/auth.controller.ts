@@ -1,10 +1,11 @@
-import { PrismaClient } from "../generated/prisma/client";
+import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import {
-  generateAccessAndRefreshToken,
-  verifyAccessToken,
+  generateAccessToken,
+  generateRefreshToken,
 } from "../utils/jwt_auth";
 import jwt from "jsonwebtoken";
+import { log } from "console";
 const dotenv = require("dotenv");
 dotenv.config();
 
@@ -101,7 +102,7 @@ async function login(req: any, res: any) {
   try {
     if (!username || !password) {
       return res
-        .status(400)
+        .status(401)
         .json({ message: "Username and password are required" });
     }
     const user = await prisma.user.findUnique({
@@ -115,7 +116,10 @@ async function login(req: any, res: any) {
       return res.status(401).json({ message: "Invalid Password" });
     }
     console.log("User logged in successfully");
-    const { accessToken, refreshToken } = await generateAccessAndRefreshToken(
+    const { accessToken } = await generateAccessToken(
+      user
+    );
+    const { refreshToken } = await generateRefreshToken(
       user
     );
     const response = await prisma.user.update({
@@ -127,14 +131,13 @@ async function login(req: any, res: any) {
       },
     });
     if (!response) {
-      return res.status(401).json({
+      return res.status(403).json({
         message: "Failed to update user tokens",
       });
     }
     return res
       .status(200)
       .cookie("refreshToken", refreshToken, refreshToken_cookie_options)
-      .cookie("accessToken", accessToken, cookie_options)
       .json({
         message: "Login successful",
         user: {
@@ -144,6 +147,7 @@ async function login(req: any, res: any) {
           firstName: user.firstName,
           lastName: user.lastName,
         },
+        accessToken: accessToken,
       });
   } catch (error) {
     console.error("Error logging in:", error);
@@ -155,10 +159,12 @@ async function login(req: any, res: any) {
 
 async function getUserdata(req: any, res: any) {
   // Get user data from the access token via middleware
+  console.log("In get user data function");
   try {
     const userId = req.user.id;
+    console.log("User Id: ", userId)
     if (!userId) {
-      throw new Error("User ID is required");
+      return res.status(401).json({ message: "User ID is required" });
     }
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -178,12 +184,8 @@ async function getUserdata(req: any, res: any) {
     });
   } catch (error) {
     console.error("Error retrieving user data:", error);
-    const refreshToken = req.body.refreshToken;
-    if (!refreshToken) {
-      return res.status(401).json({ message: "No refresh token provided" , refreshToken: null});}
     return res.status(500).json({
       message: "Internal server error",
-      refreshToken: refreshToken,
     });
   }
 }
@@ -191,7 +193,7 @@ async function getUserdatabyId(req: any, res: any) {
   const userId = req.params.id;
   console.log("User ID from request body:", userId);
   if (!userId) {
-    return res.status(400).json({ message: "User ID is required" });
+    return res.status(401).json({ message: "User ID is required" });
   }
   try {
     const user = await prisma.user.findUnique({
@@ -342,59 +344,32 @@ async function logout(req: any, res: any) {
 }
 async function refreshToken(req: any, res: any) {
   console.log("🔐 refreshToken hit!");
-  console.log("   req.cookies =", req.cookies);
-  console.log("   refreshToken =", req.cookies.refreshToken);
-  try {
-    console.log("Access Token verification failed, trying to refresh token:");
-    const refreshToken = req.body.refreshToken || req.data.refreshToken;
+    const refreshToken = req.cookies.refreshToken;
     if (!refreshToken) {
       return res.status(401).json({ message: "No refresh token provided" });
     }
-    const decoded: any = await jwt.verify(
-      refreshToken,
-      process.env.JWT_SECRET || ""
+    const foundUser = await prisma.user.findUnique({
+      where: { refreshToken: refreshToken },
+    });
+    console.log("Found user:", foundUser);
+    if (!foundUser) {
+      return res.status(403).json({ message: "User not found" });
+    }
+    console.log("Going to verify refreshToken")
+    console.log("Refresh Token: ", refreshToken);
+    console.log("JWT secret",process.env.JWT_SECRET as string )
+    jwt.verify(
+        refreshToken,
+        process.env.JWT_SECRET as string,
+        async (err:any, decoded:any) => {
+            console.log("error", (err|| undefined));
+            console.log("Decoded refresh token: ", decoded);
+            if (err || foundUser.username !== decoded?.username){ console.log("Mismatch or error in refresh token");return res.sendStatus(403)}
+            const { accessToken } = await generateAccessToken(decoded);
+            res.json({ message: "Token refreshed successfully", accessToken });
+        }
     );
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.id },
-    });
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-    if (!user.refreshToken) {
-      return res.status(403).json({ message: "No refresh token found" });
-    }
-    if (user.refreshToken != refreshToken) {
-      return res.status(403).json({ message: "Invalid refresh token" });
-    }
-    const newTokens = await generateAccessAndRefreshToken(user);
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        refreshToken: newTokens.refreshToken,
-      },
-    });
-    req.user = await verifyAccessToken(newTokens.accessToken);
-    console.log("Tokens refreshed successfully");
-    res.cookie("accessToken", newTokens.accessToken, cookie_options);
-    res.cookie(
-      "refreshToken",
-      newTokens.refreshToken,
-      refreshToken_cookie_options
-    );
-    return res.status(200).json({
-      message: "Tokens refreshed successfully",
-      user: {
-        id: user.id,
-        username: user.username,
-      },
-    });
-  } catch (error) {
-    console.error("Error in refreshToken function:", error);
-    res.status(401).json({ message: "Authentication failed" });
-    return;
-  }
 }
-// add logout function after session handling is implemented
 export {
   signup,
   login,

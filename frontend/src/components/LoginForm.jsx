@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import Dashboard from './Dashboard';
+import axios from '../axios/axios';
+import useAuth from '../hooks/useAuth';
 
 const LoginForm = () => {
+  const { auth, setAuth } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = useState(null);
   const [user, setUser] = useState({})
@@ -26,13 +27,29 @@ const LoginForm = () => {
 
     try {
       const response = await axios.post("http://localhost:3000/api/auth/login", formData, {
-      withCredentials: true });
+                    headers: { 'Content-Type': 'application/json' },
+                    withCredentials: true
+                });
       console.log('Login successful:', response.data);
       setUser({ ...response.data.user });
+      await setAuth({ userId: response.data.user.id, username: response.data.user.username, accessToken: response.data.accessToken });
+      console.log("Auth after login: ", auth);
       navigate('/dashboard');
     } catch (error) {
-      console.error('Login failed:', error);
-      setError(error.message || 'Login failed. Please try again.');
+      console.error('Login failed - Status:', error.response?.status);
+    
+    // Handle specific error cases
+    if (error.response) {
+      // Server responded with error status
+      const errorMessage = error.response.data?.message || 'Login failed. Please try again.';
+      setError(errorMessage);
+    } else if (error.request) {
+      // Network error
+      setError('Network error. Please check your connection.');
+    } else {
+      // Other error
+      setError('An unexpected error occurred.');
+    }
     } finally {
       setIsLoading(false);
     }

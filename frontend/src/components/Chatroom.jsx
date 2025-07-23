@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import axios from 'axios';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import useAxiosPrivate from '../hooks/useAxiosPrivate';
 const ChatRoom = () => {
   const navigate = useNavigate();
   const { id: chatroomId } = useParams();
@@ -14,36 +14,32 @@ const ChatRoom = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const messagesEndRef = useRef(null);
-
+  const axiosPrivate = useAxiosPrivate();
+  const location = useLocation();
   useEffect(() => {
+    let isMounted = true; // Set the mounted flag to true
+    const controller = new AbortController(); // on unmounting all the pending requests will be aborted
     const fetchChatroomdata = async () => {
+      setLoading(true); // Set loading at the start
       try {
-        console.log("Chatroom ID in frontend side:", chatroomId);
-        const response = await axios.get(`http://localhost:3000/api/chatroom/get-chatroomdatabyChatroomid/${chatroomId}`,{}, { withCredentials: true });
-        const chatroomData = await response.data.chatroomDetails;
-        console.log("Chatroom Data under fetchChatroomData",chatroomData.creatorId)
-        const creatorData = await axios.post(`http://localhost:3000/api/auth/getUserdatabyId/${chatroomData.creatorId}`,{}, { withCredentials: true });
-        setCreator(creatorData.data.user.username|| null);
-        setChatroomName(chatroomData.name || 'Untitled Chatroom');
-        setIsConnected(true);
+        const chatroomResponse = await axiosPrivate.post(
+          `/api/chatroom/get-chatroomdatabyChatroomid/${chatroomId}`,
+          {
+            signal: controller.signal, // Pass the abort signal to the request
+          }
+        );
+        console.log("🎯 getUserdata response:", chatroomResponse.data);
+        isMounted && setChatroomName(chatroomResponse?.data?.chatroom?.name);
+        isMounted && setCreator(chatroomResponse?.data?.chatroom?.creatorId);
+        isMounted && setMembers(chatroomResponse?.data?.chatroom?.members);
+        isMounted && setLoading(false);
+        return;
       } catch (error) {
-        console.error('Failed to fetch chatroom data:', error);
-        setError(error.message || 'Failed to fetch chatroom data');
-        setIsConnected(false);
+        console.error("Error fetching data:", error);
+        navigate('/dashboard', { state: { from: location }, replace: true });
       }
     };
-
     fetchChatroomdata();
-    const fetchMembers = async () => {
-      try {
-        const membersResponse = await axios.get(`http://localhost:3000/api/chatroom/get-chatroomdatabyChatroomid/${chatroomId}`, { withCredentials: true });
-        setMembers(membersResponse.data.chatroomDetails.members || []);
-        console.log("Members fetched:", membersResponse.data.chatroomDetails.members);
-      } catch (error) {
-        console.error('Failed to fetch members:', error);
-      }
-    };
-    fetchMembers();
     // Mock messages data
     setMessages([
       {
@@ -81,7 +77,11 @@ const ChatRoom = () => {
       setMessages((prev) => [...prev, newMsg]);
     }, 2000);
     setLoading(false);
-    return () => clearTimeout(timer);
+    return () => {
+      isMounted = false;
+      controller.abort();
+      clearTimeout(timer);
+    }
   }, [chatroomId, navigate]);
 
   useEffect(() => {

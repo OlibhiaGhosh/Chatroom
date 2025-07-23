@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import useAxiosPrivate from "../hooks/useAxiosPrivate";
 import axios from "axios";
 
 const Dashboard = () => {
@@ -7,99 +8,49 @@ const Dashboard = () => {
   const [user, setUser] = useState(null);
   const [chatrooms, setChatrooms] = useState([]);
   const [loading, setLoading] = useState(true);
+  const axiosPrivate = useAxiosPrivate();
+  const location = useLocation();
 
   useEffect(() => {
-    console.log("🚀 Dashboard useEffect mounted");
+    let isMounted = true; // Set the mounted flag to true
+    const controller = new AbortController(); // on unmounting all the pending requests will be aborted
     const fetchData = async () => {
-      console.log("🛫 fetchData() called");
       setLoading(true); // Set loading at the start
       try {
-        console.log("🎯 About to call getUserdata");
-        const userResponse = await axios.post(
-          "http://localhost:3000/api/auth/getUserdata",
-          undefined,
+        const userResponse = await axiosPrivate.post(
+          "/api/auth/getUserdata",
           {
-            withCredentials: true,
+            signal: controller.signal, // Pass the abort signal to the request
           }
         );
         console.log("🎯 getUserdata response:", userResponse.data);
-        setUser(userResponse.data.user);
+        isMounted && setUser(userResponse.data.user);
+        
 
         console.log("🎯 About to call getChatroomdatabyCreatorid");
-        const chatroomsResponse = await axios.post(
-          "http://localhost:3000/api/chatroom/get-chatroomdatabyCreatorid",
-          undefined,
+        const chatroomsResponse = await axiosPrivate.post(
+          '/api/chatroom/get-chatroomdatabyCreatorid',
           {
-            withCredentials: true,
+            signal: controller.signal, // Pass the abort signal to the request
           }
         );
-        console.log(
-          "🎯 getChatroomdatabyCreatorid response:",
-          chatroomsResponse.data
-        );
-        setChatrooms(chatroomsResponse.data.chatrooms);
-        setLoading(false);
+        const chatroomsData = await chatroomsResponse.data;
+        console.log("🎯 getChatroomdatabyCreatorid response:", chatroomsData);
+        isMounted && setChatrooms(chatroomsData.chatrooms);
+        isMounted && setLoading(false);
         return;
       } catch (error) {
-        console.log("🔥 IN DASHBOARD CATCH BLOCK");
-        console.log("RAW ERROR OBJECT:", error);
-        if (axios.isAxiosError(error) && error.response?.status === 401) {
-          console.log("Access token expired or invalid, attempting to refresh...");
-          try {
-            console.log("In the try block in dashboard for refreshToken");
-            const refreshToken = error.response.data.refreshToken;
-            console.log("refresh token from error.response.data.token: ", refreshToken)
-            if (!refreshToken) {
-              console.log("No refresh token provided, logging out.");
-              navigate("/login");
-              return;
-            }
-            const refreshResponse = await axios.post(
-              "http://localhost:3000/api/auth/refresh-token",
-              { refreshToken },
-              { withCredentials: true }
-            );
-
-            if (refreshResponse.status === 200) {
-              console.log("Token refreshed successfully, retrying requests...");
-              // Retry original requests
-              const userResponse = await axios.post(
-                "http://localhost:3000/api/auth/getUserdata",
-                {},
-                { withCredentials: true }
-              );
-              setUser(userResponse.data.user);
-
-              const chatroomsResponse = await axios.post(
-                "http://localhost:3000/api/chatroom/get-chatroomdatabyCreatorid",
-                {},
-                { withCredentials: true }
-              );
-              setChatrooms(chatroomsResponse.data.chatrooms);
-              setLoading(false)
-              return;
-              
-            }
-          } catch (refreshError) {
-            console.log("In the catch block in dashboard for refreshToken");
-            console.error(
-              "Failed to refresh token, logging out.",
-              refreshError
-            );
-            navigate("/login");
-            return;
-          }
-        } else {
-          console.log("In the else block in dashboard for refreshToken");
-          console.error("An unexpected error occurred:", error);
-          navigate("/");
-          return;
-        }
+        console.error("Error fetching data:", error);
+        navigate('/login', { state: { from: location }, replace: true });
       }
     };
 
     fetchData();
-  }, [navigate]);
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
+  }, []);
 
   const handleCreateChatroom = () => {
     navigate("/create-chatroom");

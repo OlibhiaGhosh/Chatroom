@@ -9,8 +9,6 @@ import './App.css';
 
 function App() {
   return (
-    <Router>
-      <div className="App">
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginForm />} />
@@ -19,8 +17,6 @@ function App() {
           <Route path="/create-chatroom" element={<CreateChatroom />} />
           <Route path="/chatroom/:id" element={<ChatRoom />} />
         </Routes>
-      </div>
-    </Router>
   );
 }
 
