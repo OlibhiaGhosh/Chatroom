@@ -13,6 +13,7 @@ const ChatRoom = () => {
   const [showMobileMembers, setShowMobileMembers] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [join, setJoin] = useState(false);
   const messagesEndRef = useRef(null);
   const axiosPrivate = useAxiosPrivate();
   const location = useLocation();
@@ -30,6 +31,11 @@ const ChatRoom = () => {
             signal: controller.signal, // Pass the abort signal to the request
           }
         );
+        // if (chatroomResponse.data.message == "User is not a member of this chatroom"){
+        //   console.log("User is not a member of this chatroom");
+        //   isMounted && setJoin(true);
+        //   return;
+        // }
         console.log("🎯 getChatroomdata response:", chatroomResponse.data);
         try{
         const userResponse = await axiosPrivate.post(
@@ -45,7 +51,7 @@ const ChatRoom = () => {
       } catch (error) {
         console.error("Error fetching creator data:", error);
         isMounted && setError("Failed to fetch creator data.");
-        navigate('/login', { state: { from: location }, replace: true });
+        navigate('/login', { state: { from: location.pathname }, replace: true });
       }
         isMounted && setChatroomName(chatroomResponse?.data?.chatroomDetails?.name);
         isMounted && setMembers(chatroomResponse?.data?.chatroomDetails?.members);
@@ -54,7 +60,12 @@ const ChatRoom = () => {
         return;
       } catch (error) {
         console.error("Error fetching data:", error);
-        navigate('/dashboard', { state: { from: location }, replace: true });
+        if (chatroomResponse.data.message == "User is not a member of this chatroom"){
+          console.log("User is not a member of this chatroom");
+          isMounted && setJoin(true);
+          return;
+        }
+        navigate('/dashboard', { state: { from: location.pathname }, replace: true });
       }
     };
     fetchChatroomdata();
@@ -138,6 +149,18 @@ const ChatRoom = () => {
   const getOnlineCount = () => {
     return members.filter((member) => member.online).length;
   };
+  const handleJoinChatroom = () => {
+    setJoin(false);
+  }
+
+  if (join) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-black text-white">
+        <div>Wanna join the chatroom?</div>
+        <button className="ml-2 px-4 py-2 bg-green-500 rounded" onClick={() => handleJoinChatroom()}>Join</button>
+      </div>
+    );
+  }
 
   if (!creator || !isConnected) {
     return (

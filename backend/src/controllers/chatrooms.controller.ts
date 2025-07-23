@@ -48,38 +48,11 @@ async function getChatroomDatabyChatroomId(req: any, res: any) {
       return res.status(404).json({ message: "Chatroom not found" });
     }
     if (!details.members.some((member: any) => member.userId === id)) {
-      try {
-        console.log("User with ID:", id, "is not a member of chatroom:", details.name);
-        // User is not a member, so we allow them to join the chatroom
-        const chatroomDetails = await prisma.chatroom.update({
-          where: { room_id: chatroomId },
-          data: {
-            members: {
-              set: [
-                ...(details.members as any[]),
-                {
-                  userId: id,
-                  username: username,
-                },
-              ],
-            },
-          },
-        });
-        if (!chatroomDetails) {
-          return res.status(404).json({ message: "Chatroom members could not be updated" });
-        }
-        console.log("User with ID:", id, "joined chatroom:", details.name);
-        return res.status(200).json({
-          message: "User " + username + " joined the chatroom successfully",
-          chatroomDetails,
-        });
-      } catch (error) {
-        console.error("Error joining chatroom:", error);
-        return res.status(500).json({
-          message: "Internal server error",
-        });
-      }
-    }
+      return res.status(403).json({
+        message: "User is not a member of this chatroom",
+        chatroomDetails: details,
+      });
+      }      
     return res.status(200).json({
       message:
         "Chatroom-name:" +
@@ -94,6 +67,53 @@ async function getChatroomDatabyChatroomId(req: any, res: any) {
       message: "Internal server error",
     });
   }
+}
+async function joinChatroom(req: any, res: any) {
+  const chatroomId = await req.params.id; // Assuming chatroomId is passed as a URL parameter
+  const { id, username } = await req.user; // Get user ID from the request
+  try {
+    if (!id || !username) {
+      return res
+        .status(401)
+        .json({ message: "Username and User ID are required" });
+    }
+    if (!chatroomId) {
+      return res.status(400).json({ message: "Chatroom ID is required" });
+    }
+    const chatroom = await prisma.chatroom.findUnique({
+      where: { room_id: chatroomId },
+    });
+    if (!chatroom) {
+      return res.status(404).json({ message: "Chatroom not found" });
+    }
+    const chatroomDetails = await prisma.chatroom.update({
+      where: { room_id: chatroomId },
+          data: {
+            members: {
+              set: [
+                ...(chatroom.members as any[]),
+                {
+                  userId: id,
+                  username: username,
+                },
+              ],
+            },
+          },
+        });
+        if (!chatroomDetails) {
+          return res.status(404).json({ message: "Chatroom members could not be updated" });
+        }
+        console.log("User with ID:", id, "joined chatroom:", chatroom.name);
+        return res.status(200).json({
+          message: "User " + username + " joined the chatroom successfully",
+          chatroomDetails,
+        });
+      } catch (error) {
+        console.error("Error joining chatroom:", error);
+        return res.status(500).json({
+          message: "Internal server error",
+        });
+      }
 }
 async function getChatroomDatabyCreatorId(req: any, res: any) {
   const { id: userId } = req.user; 
@@ -117,47 +137,6 @@ async function getChatroomDatabyCreatorId(req: any, res: any) {
     return res.status(500).json({
       message: "Internal server error",
     });
-  }
-}
-async function joinChatroom(req: any, res: any) {
-  const { chatroomId } = req.body;
-  const { id, username } = req.user;
-  try {
-    if (!id || !username) {
-      return res
-        .status(401)
-        .json({ message: "Username and User ID are required" });
-    }
-    if (!chatroomId) {
-      return res.status(400).json({ message: "Chatroom ID is required" });
-    }
-    const chatroom = await prisma.chatroom.findUnique({
-      where: { room_id: chatroomId },
-    });
-    if (!chatroom) {
-      return res.status(404).json({ message: "Chatroom not found" });
-    }
-    const chatroomDetails = await prisma.chatroom.update({
-      where: { room_id: chatroomId },
-      data: {
-        members: {
-          set: [
-            ...(chatroom.members as any[]),
-            {
-              userId: id,
-              username: username,
-            },
-          ],
-        },
-      },
-    });
-    console.log("User with ID:", id, "joined chatroom:", chatroom.name);
-    return res.status(200).json({
-      message: "User " + username + " joined the chatroom successfully",
-      chatroomDetails,
-    });
-  } catch (error) {
-    console.error("Error joining chatroom:", error);
   }
 }
 async function getChatrooms(req: any, res: any) {// Extra unnecessary route

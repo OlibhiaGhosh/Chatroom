@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import useAxiosPrivate from '../hooks/useAxiosPrivate';
 
 const CreateChatroom = () => {
+  const axiosPrivate = useAxiosPrivate();
   const navigate = useNavigate();
   const [chatroomData, setChatroomData] = useState({
     name: '',
@@ -24,9 +25,10 @@ const CreateChatroom = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-
+    let isMounted = true; // Set the mounted flag to true
+    const controller = new AbortController(); // on unmounting all the pending requests will be aborted
     try {
-      const response = await axios.post('http://localhost:3000/api/chatroom/create-chatroom', chatroomData, {withCredentials: true});
+      const response = await axiosPrivate.post('/api/chatroom/create-chatroom', chatroomData, { signal: controller.signal });
       const newChatroomId = response.data.chatroom.room_id;
       const link = `${window.location.origin}/chatroom/${newChatroomId}`;
 
@@ -37,6 +39,10 @@ const CreateChatroom = () => {
       console.error('Failed to create chatroom:', error);
     } finally { 
       setIsLoading(false);
+    }
+    return () => {
+      isMounted = false;
+      controller.abort();
     }
   };
 

@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import axios from '../axios/axios';
 import useAuth from '../hooks/useAuth';
 
 const LoginForm = () => {
   const { auth, setAuth } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = location.state?.from || '/dashboard';
   const [error, setError] = useState(null);
   const [user, setUser] = useState({})
   const [isLoading, setIsLoading] = useState(false);
@@ -34,7 +36,7 @@ const LoginForm = () => {
       setUser({ ...response.data.user });
       await setAuth({ userId: response.data.user.id, username: response.data.user.username, accessToken: response.data.accessToken });
       console.log("Auth after login: ", auth);
-      navigate('/dashboard');
+      navigate(from, { replace: true });
     } catch (error) {
       console.error('Login failed - Status:', error.response?.status);
     
