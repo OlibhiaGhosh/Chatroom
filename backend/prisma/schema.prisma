@@ -50,7 +50,6 @@ model UserChatroom {
 }
 
 model message {
-  id         String @id @default(uuid())
-  chatroomId String
-  content    Json /// Each element: { user_id: String, message: String }
+  chatroomId String @id
+  content    Json[] /// Each element: { user_id: String, messages: [{ text: String, timestamp: DateTime }] }
 }

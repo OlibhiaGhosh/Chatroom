@@ -2,9 +2,12 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import useAxiosPrivate from "../hooks/useAxiosPrivate";
 import axios from "axios";
+import Navbar from "./Navbar";
+import useAuth from "../hooks/useAuth";
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { auth } = useAuth();
   const [user, setUser] = useState(null);
   const [chatrooms, setChatrooms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -17,16 +20,7 @@ const Dashboard = () => {
     const fetchData = async () => {
       setLoading(true); // Set loading at the start
       try {
-        const userResponse = await axiosPrivate.post(
-          "/api/auth/getUserdata",
-          {
-            signal: controller.signal, // Pass the abort signal to the request
-          }
-        );
-        console.log("🎯 getUserdata response:", userResponse.data);
-        isMounted && setUser(userResponse.data.user);
-        
-
+        setUser(auth.user);
         console.log("🎯 About to call getChatroomdatabyCreatorid");
         const chatroomsResponse = await axiosPrivate.post(
           '/api/chatroom/get-chatroomdatabyCreatorid',
@@ -56,24 +50,6 @@ const Dashboard = () => {
     navigate("/create-chatroom");
   };
 
-  const handleLogout = () => {
-    const controller = new AbortController();
-    try {
-      const response = axiosPrivate.post(
-        "/api/auth/logout",
-        {
-            signal: controller.signal, // Pass the abort signal to the request
-          }
-      );
-      console.log("Logout successful:", response.data);
-      navigate("/login", { replace: true });
-    } catch (error) {
-      console.error("Logout failed:", error);
-    }
-    return () => {
-      controller.abort(); // Abort the logout request on unmount
-    };
-  };
 
   const handleDeleteChatroom = (id) => {
     setChatrooms(chatrooms.filter((room) => room.id !== id));
@@ -111,22 +87,7 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-black to-gray-900 text-white">
-      <header className="border-b border-green-800 bg-black p-4">
-        <div className="container mx-auto flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500">
-            ChatConnect
-          </h1>
-          <div className="flex items-center gap-4">
-            <span className="text-blue-400">Welcome {user?.firstName}!</span>
-            <button
-              onClick={handleLogout}
-              className="px-3 py-1 text-sm border border-red-600 text-red-500 rounded-md hover:bg-red-900/20 hover:text-red-400 transition-colors"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-      </header>
+      <Navbar />
 
       <main className="container mx-auto p-6">
         <div className="mb-8 flex items-center justify-between">
