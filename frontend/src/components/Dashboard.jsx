@@ -7,7 +7,7 @@ import useAuth from "../hooks/useAuth";
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { auth } = useAuth();
+  const { auth, setAuth } = useAuth();
   const [user, setUser] = useState(null);
   const [chatrooms, setChatrooms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -20,10 +20,20 @@ const Dashboard = () => {
     const fetchData = async () => {
       setLoading(true); // Set loading at the start
       try {
-        setUser(auth.user);
+        let currentUser = auth?.user;
+      if (!currentUser) {
+        // 🔁 Get user from backend if not present in context
+        const userResponse = await axiosPrivate.post("/api/auth/getUserdata", {}, {
+          signal: controller.signal,
+        });
+        currentUser = userResponse.data.user;
+        setAuth(prev => ({ ...prev, user: currentUser }));
+      }
+
+      setUser(currentUser);
         console.log("🎯 About to call getChatroomdatabyCreatorid");
         const chatroomsResponse = await axiosPrivate.post(
-          '/api/chatroom/get-chatroomdatabyCreatorid',
+          '/api/chatroom/get-chatroomdatabyCreatorid', {},
           {
             signal: controller.signal, // Pass the abort signal to the request
           }

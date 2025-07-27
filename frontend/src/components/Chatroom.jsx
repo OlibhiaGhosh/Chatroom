@@ -1,13 +1,16 @@
-import React, { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import useAxiosPrivate from "../hooks/useAxiosPrivate";
-import Navbar from "./Navbar";
+import useAuth from "../hooks/useAuth";
+import { use } from "react";
+import { socket } from "../socket";
 const ChatRoom = () => {
   const navigate = useNavigate();
   const { id: chatroomId } = useParams();
   const [creator, setCreator] = useState({});
   const [chatroomName, setChatroomName] = useState("Loading...");
   const [messages, setMessages] = useState([]);
+  const [content, setContent] = useState([]);
   const [members, setMembers] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [isConnected, setIsConnected] = useState(false);
@@ -17,16 +20,34 @@ const ChatRoom = () => {
   const messagesEndRef = useRef(null);
   const axiosPrivate = useAxiosPrivate();
   const location = useLocation();
+  const { auth, setAuth } = useAuth();
   useEffect(() => {
     let isMounted = true; // Set the mounted flag to true
     const controller = new AbortController(); // on unmounting all the pending requests will be aborted
     console.log(`Chatroom ID: ${chatroomId}`);
     setLoading(true); // Set loading at the start
     const fetchChatroomdata = async () => {
-      
       try {
+        try {
+          let currentUser = auth?.user;
+          if (!currentUser) {
+            // 🔁 Get user from backend if not present in context
+            const userResponse = await axiosPrivate.post(
+              "/api/auth/getUserdata",
+              {},
+              {
+                signal: controller.signal,
+              }
+            );
+            currentUser = userResponse.data.user;
+            setAuth((prev) => ({ ...prev, user: currentUser }));
+          }
+        } catch (error) {
+          console.error("Error fetching user data:", error);
+        }
         const chatroomResponse = await axiosPrivate.post(
           `/api/chatroom/get-chatroomdatabyChatroomid/${chatroomId}`,
+          {},
           {
             signal: controller.signal, // Pass the abort signal to the request
           }
@@ -35,6 +56,7 @@ const ChatRoom = () => {
         try {
           const userResponse = await axiosPrivate.post(
             `/api/auth/getUserdatabyId/${chatroomResponse.data.chatroomDetails.creatorId}`,
+            {},
             {
               signal: controller.signal, // Pass the abort signal to the request
             }
@@ -50,12 +72,43 @@ const ChatRoom = () => {
             replace: true,
           });
         }
-         isMounted &&
+        try {
+          const messagesResponse = await axiosPrivate.get(
+            `/api/messages/get-messages/${chatroomId}`,
+            {
+              signal: controller.signal, // Pass the abort signal to the request
+            }
+          );
+          console.log("🎯 getMessages response:", messagesResponse.data);
+          isMounted && setMessages(messagesResponse.data.content);
+        } catch (error) {
+          console.error("error in fetching messages:", error);
+          isMounted && setMessages(["Failed to fetch messages."]);
+        }
+        isMounted &&
           setChatroomName(chatroomResponse?.data?.chatroomDetails?.name);
         isMounted &&
           setMembers(chatroomResponse?.data?.chatroomDetails?.members);
         isMounted && setIsConnected(true);
-        // isMounted && setLoading(false);
+        socket.emit("join_room", {
+          roomId: chatroomId,
+          username: auth?.user?.username,
+        });
+        socket.on("user_joined", (data) => {
+          console.log("From socket: ", data.message);
+        });
+        socket.on("new_message", (data) => {
+          console.log("New message received:", data);
+          setMessages((prevMessages) => [
+            ...prevMessages,
+            {
+              user_id: data.userId,
+              username: data.username,
+              message: data.content,
+              timestamp: new Date(),
+            },
+          ]);
+        });
         return;
       } catch (error) {
         isMounted && setLoading(true);
@@ -89,50 +142,33 @@ const ChatRoom = () => {
       }
     };
     fetchChatroomdata();
-    // Mock messages data
-    setMessages([
-      {
-        id: "msg-1",
-        senderId: "user-456",
-        senderName: "Alice",
-        text: "Hey everyone! Welcome to the new chatroom.",
-        timestamp: new Date(Date.now() - 1000 * 60 * 30),
-      },
-      {
-        id: "msg-2",
-        senderId: "user-789",
-        senderName: "Bob",
-        text: "Thanks for setting this up!",
-        timestamp: new Date(Date.now() - 1000 * 60 * 25),
-      },
-      {
-        id: "msg-3",
-        senderId: "user-123",
-        senderName: "You",
-        text: "No problem! Let's discuss the project here.",
-        timestamp: new Date(Date.now() - 1000 * 60 * 20),
-      },
-    ]);
-
-    // Simulate receiving a new message
-    const timer = setTimeout(() => {
-      const newMsg = {
-        id: `msg-${Date.now()}`,
-        senderId: "user-456",
-        senderName: "Alice",
-        text: "Just checking if everyone is here?",
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, newMsg]);
-    }, 2000);
     isMounted && setLoading(false);
     return () => {
       isMounted = false;
       controller.abort();
-      clearTimeout(timer);
+      socket.emit("disconnected", {
+        roomId: chatroomId,
+        username: auth.user.username,
+      });
     };
   }, [chatroomId, navigate]);
-
+  useEffect(() => {
+    socket.on("user_joined", (data) => {
+      console.log("From socket: ", data.message);
+    });
+    socket.on("new_message", (data) => {
+      console.log("New message received:", data);
+      setMessages((prevMessages) => [
+        ...prevMessages,
+        {
+          user_id: data.userId,
+          username: data.username,
+          message: data.content,
+          timestamp: new Date(),
+        },
+      ]);
+    });
+  }, [chatroomId, auth?.user?.username]);
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
@@ -141,21 +177,21 @@ const ChatRoom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const handleSendMessage = (e) => {
+  const handleSendMessage = async (e) => {
     e.preventDefault();
-
-    if (!newMessage.trim() || !user) return;
-
-    const message = {
-      id: `msg-${Date.now()}`,
-      senderId: user.id,
-      senderName: "You",
-      text: newMessage,
-      timestamp: new Date(),
-    };
-
-    setMessages([...messages, message]);
-    setNewMessage("");
+    try {
+      const response = await axiosPrivate.post(
+        `/api/messages/send-message/${chatroomId}`,
+        {
+          content: newMessage,
+          username: auth.user.username,
+        }
+      );
+      console.log("Message sent:", response.data);
+      setNewMessage("");
+    } catch (error) {
+      console.error("Error sending message:", error);
+    }
   };
 
   const formatTime = (date) => {
@@ -261,19 +297,19 @@ const ChatRoom = () => {
           </div>
           <div className="flex flex-col gap-4">
             {messages.map((message) => {
-              const isOwnMessage = message.senderId === creator.id;
-              const sender = members.find((m) => m.id === message.senderId);
+              const isOwnMessage = message.user_id === creator.id;
+              const sender = members.find((m) => m.userId === message.user_id);
 
               return (
                 <div
-                  key={message.id}
+                  key={message.user_id}
                   className={`flex ${
                     isOwnMessage ? "justify-end" : "justify-start"
                   }`}
                 >
                   {!isOwnMessage && (
                     <div className="mr-2 h-8 w-8 self-end bg-blue-700 rounded-full flex items-center justify-center text-sm">
-                      {message.senderName.charAt(0).toUpperCase()}
+                      {message.username.charAt(0).toUpperCase()}
                     </div>
                   )}
                   <div
@@ -285,10 +321,10 @@ const ChatRoom = () => {
                   >
                     {!isOwnMessage && (
                       <div className="mb-1 text-xs font-medium text-blue-400">
-                        {message.senderName}
+                        {message.username}
                       </div>
                     )}
-                    <p>{message.text}</p>
+                    <p>{message.message}</p>
                     <div
                       className={`mt-1 text-right text-xs opacity-70 ${
                         isOwnMessage ? "text-gray-200" : "text-gray-400"
@@ -311,7 +347,7 @@ const ChatRoom = () => {
           </h2>
           <div key="members-list" className="flex flex-col gap-3">
             {members.map((member) => (
-              <div key={member.id} className="flex items-center gap-2">
+              <div key={member.userId} className="flex items-center gap-2">
                 <div
                   className={`h-2 w-2 rounded-full ${
                     member.online ? "bg-green-500" : "bg-gray-500"
@@ -321,7 +357,7 @@ const ChatRoom = () => {
                   {member.username.charAt(0).toUpperCase()}
                 </div>
                 <span>
-                  {member.username} {member.id === creator.id && "(You)"}
+                  {member.username} {member.userId === creator.id && "(You)"}
                 </span>
               </div>
             ))}
@@ -356,7 +392,7 @@ const ChatRoom = () => {
             </div>
             <div className="flex flex-col gap-3">
               {members.map((member) => (
-                <div key={member.id} className="flex items-center gap-2">
+                <div key={member.userId} className="flex items-center gap-2">
                   <div
                     className={`h-2 w-2 rounded-full ${
                       member.online ? "bg-green-500" : "bg-gray-500"
@@ -366,7 +402,7 @@ const ChatRoom = () => {
                     {member.username.charAt(0).toUpperCase()}
                   </div>
                   <span className="text-sm">
-                    {member.username} {member.id === user.id && "(You)"}
+                    {member.username} {member.userId === creator.id && "(You)"}
                   </span>
                 </div>
               ))}

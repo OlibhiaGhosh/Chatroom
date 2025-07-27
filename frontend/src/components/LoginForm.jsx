@@ -1,9 +1,9 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import axios from "../axios/axios";
 import useAuth from "../hooks/useAuth";
 import Navbar from "./Navbar";
-import { socket } from "../App"; // Import the socket instance
+import { socket } from "../socket"; // Import the socket instance
 
 const LoginForm = () => {
   const { auth, setAuth } = useAuth();
@@ -17,7 +17,17 @@ const LoginForm = () => {
     username: "",
     password: "",
   });
-  console.log("from in login: ", from);
+  useEffect(() => {
+    const handleUserLoggedIn = (data) => {
+      console.log(data.message);
+    };
+
+    socket.on("user_logged_in", handleUserLoggedIn);
+
+    return () => {
+      socket.off("user_logged_in", handleUserLoggedIn);
+    };
+  }, []);
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -44,16 +54,13 @@ const LoginForm = () => {
         accessToken: response.data.accessToken,
       });
       console.log("Auth after login: ", auth);
-      socket.on("user_logged_in", (data) => {
-        console.log(data.message);
-      });
       navigate(from, { replace: true });
     } catch (error) {
       console.error("Login failed - Status:", error.response?.status);
 
       // Handle specific error cases
       const errorMessage =
-        error.response.data?.message || "Login failed. Please try again.";
+        error.response?.data?.message || "Login failed. Please try again.";
       if (errorMessage == "User not found!") {
         setError("User not found! Please check your username.");
         navigate("/signup", {
@@ -74,7 +81,6 @@ const LoginForm = () => {
 
   return (
     <>
-      <Navbar />
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-black to-gray-900">
         <div className="w-[400px] border border-green-800 bg-gray-900 text-white rounded-lg">
           <div className="p-6 pb-2">

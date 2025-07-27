@@ -15,7 +15,7 @@ const JoinChatroom = () => {
     const controller = new AbortController();
     try {
       const response = await axiosPrivate.post(
-        `/api/chatroom/join-chatroom/${chatroomId}`,
+        `/api/chatroom/join-chatroom/${chatroomId}`,{},
         {
           signal: controller.signal, // Pass the abort signal to the request
         }

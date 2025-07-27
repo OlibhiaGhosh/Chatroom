@@ -115,7 +115,7 @@ async function joinChatroom(req: any, res: any) {
         });
       }
 }
-async function getChatroomDatabyCreatorId(req: any, res: any) {
+async function getChatroomDatabyCreatorId(req: any, res: any) { //for fetching data of dashboard for each user
   const { id: userId } = req.user; 
   try {
     if (!userId) {

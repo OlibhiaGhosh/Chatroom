@@ -3,6 +3,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import authRoutes from "./routes/auth.routes";
 import chatroomRoutes from "./routes/chatroom.routes";
+import messageRoutes from "./routes/messages.routes";
 import http from "http";
 import { initSocket } from "./lib/socket";
 
@@ -24,6 +25,7 @@ app.use(cookieParser());
 
 app.use("/api/auth", authRoutes);
 app.use("/api/chatroom", chatroomRoutes);
+app.use("/api/messages", messageRoutes);
 
 server.listen(3000, () => {
   console.log("server is running on PORT:" + 3000);

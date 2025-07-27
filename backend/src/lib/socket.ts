@@ -50,13 +50,34 @@ let io: SocketIOServer;
 export const initSocket = (server: HttpServer) => {
   io = new SocketIOServer(server, {
     cors: {
-      origin: "http://localhost:5173",  // or your frontend domain
-      credentials: true, 
-    }
+      origin: "http://localhost:5173", // or your frontend domain
+      credentials: true,
+    },
   });
 
   io.on("connection", (socket) => {
     console.log("🟢 New client connected:", socket.id);
+
+    socket.on("join_room", ({ roomId, username }) => {
+      if (!roomId || !username) {
+        return console.log("Missing roomId or username");
+      }
+
+      socket.join(roomId);
+      console.log(`👤 ${username} joined room ${roomId}`);
+      io.to(roomId).emit("user_joined", {
+        message: `${username} has joined the room`,
+      });
+    });
+
+    socket.on("disconnected", ({ roomId, username }) => {
+      console.log("🔴 Disconnected:", socket.id);
+      if (roomId && username) {
+        io.to(roomId).emit("user_disconnected", {
+          message: `${username} has disconnected`,
+        });
+      }
+    });
 
     socket.on("disconnect", () => {
       console.log("🔴 Client disconnected:", socket.id);

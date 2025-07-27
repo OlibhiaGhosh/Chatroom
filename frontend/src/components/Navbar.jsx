@@ -10,10 +10,30 @@ const Navbar = () => {
   const { auth, setAuth } = useAuth();
 
   useEffect(() => {
-    if (auth?.user) {
-      setIsLoggedIn(true);
-    }
-  }, [auth]);
+    let isMounted = true; // Set the mounted flag to true
+    const controller = new AbortController(); // on unmounting all the pending requests will be aborted
+    const checkLoginStatus = async () => {
+      try {
+        let currentUser = auth?.user;
+        if (!currentUser) {
+          // 🔁 Get user from backend if not present in context
+          const userResponse = await axiosPrivate.post("/api/auth/getUserdata", {}, {
+            signal: controller.signal, // Pass the abort signal to the request
+          });
+          currentUser = userResponse.data.user;
+          setAuth(prev => ({ ...prev, user: currentUser }));
+        }
+        setIsLoggedIn(!!currentUser);
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+      }
+    };
+    checkLoginStatus();
+    return () => {
+      isMounted = false;
+      controller.abort(); // Abort the request on unmount
+    };
+  }, [auth, setAuth]);
 
   const handleLogout = () => {
     const controller = new AbortController();

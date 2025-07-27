@@ -9,7 +9,7 @@ async function generateAccessToken(user: user) {
     username: user.username,
   };
   const accessToken = jwt.sign(payload, process.env.JWT_SECRET, {
-    expiresIn: "30s",
+    expiresIn: "15m",
   });
   if (!accessToken) {
     throw new Error("Failed to generate access token");
@@ -23,7 +23,7 @@ async function generateRefreshToken(user: user) {
     username: user.username,
   };
   const refreshToken = jwt.sign(payload, process.env.JWT_SECRET, {
-    expiresIn: "1h",
+    expiresIn: "1d", // Refresh token valid for 1 day
   });
   if (!refreshToken) {
     throw new Error("Failed to generate refresh token");
