@@ -29,7 +29,7 @@ async function sendMessage(req: any, res: any) {
         chatroomDetails: chatroom,
       });
     }
-    const chatroomExistsHere = await prisma.message.findUnique({
+    const chatroomExistsHere = await prisma.message.findFirst({
       where: { chatroomId: chatroomId },
     });
     if (!chatroomExistsHere) {
@@ -76,7 +76,12 @@ async function sendMessage(req: any, res: any) {
         },
       },
     });
-
+    io.to(chatroomId).emit("new_message", {
+        roomId: chatroomId,
+        userId: userId,
+        username: username,
+        content: content,
+    });
     return res.status(201).json({
       message: "Message added successfully",
       content: updatedMessage,

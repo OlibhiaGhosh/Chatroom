@@ -66,6 +66,8 @@ export const initSocket = (server: HttpServer) => {
       socket.join(roomId);
       console.log(`👤 ${username} joined room ${roomId}`);
       io.to(roomId).emit("user_joined", {
+        roomId: roomId,
+        username: username,
         message: `${username} has joined the room`,
       });
     });

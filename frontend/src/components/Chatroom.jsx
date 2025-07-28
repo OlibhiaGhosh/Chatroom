@@ -17,6 +17,7 @@ const ChatRoom = () => {
   const [showMobileMembers, setShowMobileMembers] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [sending, setSending] = useState(false);
   const messagesEndRef = useRef(null);
   const axiosPrivate = useAxiosPrivate();
   const location = useLocation();
@@ -25,9 +26,9 @@ const ChatRoom = () => {
     let isMounted = true; // Set the mounted flag to true
     const controller = new AbortController(); // on unmounting all the pending requests will be aborted
     console.log(`Chatroom ID: ${chatroomId}`);
-    setLoading(true); // Set loading at the start
     const fetchChatroomdata = async () => {
       try {
+        setLoading(true);
         try {
           let currentUser = auth?.user;
           if (!currentUser) {
@@ -83,35 +84,18 @@ const ChatRoom = () => {
           isMounted && setMessages(messagesResponse.data.content);
         } catch (error) {
           console.error("error in fetching messages:", error);
-          isMounted && setMessages(["Failed to fetch messages."]);
+          isMounted && setMessages([]);
         }
+
         isMounted &&
           setChatroomName(chatroomResponse?.data?.chatroomDetails?.name);
         isMounted &&
           setMembers(chatroomResponse?.data?.chatroomDetails?.members);
         isMounted && setIsConnected(true);
-        socket.emit("join_room", {
-          roomId: chatroomId,
-          username: auth?.user?.username,
-        });
-        socket.on("user_joined", (data) => {
-          console.log("From socket: ", data.message);
-        });
-        socket.on("new_message", (data) => {
-          console.log("New message received:", data);
-          setMessages((prevMessages) => [
-            ...prevMessages,
-            {
-              user_id: data.userId,
-              username: data.username,
-              message: data.content,
-              timestamp: new Date(),
-            },
-          ]);
-        });
+        isMounted && setLoading(false);
         return;
       } catch (error) {
-        isMounted && setLoading(true);
+        // isMounted && setLoading(true);
         console.error("Error fetching data:", error);
         if (
           error.response?.data?.message ==
@@ -142,21 +126,22 @@ const ChatRoom = () => {
       }
     };
     fetchChatroomdata();
-    isMounted && setLoading(false);
     return () => {
       isMounted = false;
       controller.abort();
       socket.emit("disconnected", {
         roomId: chatroomId,
-        username: auth.user.username,
+        username: auth?.user?.username,
       });
     };
-  }, [chatroomId, navigate]);
+  }, [chatroomId]);
+
   useEffect(() => {
-    socket.on("user_joined", (data) => {
-      console.log("From socket: ", data.message);
-    });
-    socket.on("new_message", (data) => {
+    const handleUserJoined = (data) => {
+      console.log("From socket:", data.message);
+    };
+
+    const handleNewMessage = (data) => {
       console.log("New message received:", data);
       setMessages((prevMessages) => [
         ...prevMessages,
@@ -167,8 +152,25 @@ const ChatRoom = () => {
           timestamp: new Date(),
         },
       ]);
+    };
+
+    socket.on("user_joined", (data) => {if (data.roomId === chatroomId) handleUserJoined(data)});
+    socket.on("new_message", (data) => {if (data.roomId === chatroomId) handleNewMessage(data)});
+
+    return () => {
+      socket.off("user_joined", handleUserJoined);
+      socket.off("new_message", handleNewMessage);
+    };
+  }, [chatroomId]);
+
+  useEffect(() => {
+    if (!auth?.user?.username) return; // don’t run until we know who you are
+    socket.emit("join_room", {
+      roomId: chatroomId,
+      username: auth.user.username,
     });
   }, [chatroomId, auth?.user?.username]);
+
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
@@ -179,6 +181,9 @@ const ChatRoom = () => {
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
+    if (sending || !newMessage.trim()) return;
+
+    setSending(true);
     try {
       const response = await axiosPrivate.post(
         `/api/messages/send-message/${chatroomId}`,
@@ -191,11 +196,16 @@ const ChatRoom = () => {
       setNewMessage("");
     } catch (error) {
       console.error("Error sending message:", error);
+    } finally {
+      setSending(false);
     }
   };
 
   const formatTime = (date) => {
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return new Date(date).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   const handleBack = () => {
@@ -295,51 +305,58 @@ const ChatRoom = () => {
           <div className="my-4 text-center text-gray-500">
             Created by: {creator.username}
           </div>
-          <div className="flex flex-col gap-4">
-            {messages.map((message) => {
-              const isOwnMessage = message.user_id === creator.id;
-              const sender = members.find((m) => m.userId === message.user_id);
+          {!messages.length ? (
+            <div className="text-center text-gray-500">
+              No messages yet. Start the conversation!
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {messages.map((message) => {
+                const isOwnMessage = message.user_id === auth?.user?.id;
+                const sender = members.find(
+                  (m) => m.userId === message.user_id
+                );
 
-              return (
-                <div
-                  key={message.user_id}
-                  className={`flex ${
-                    isOwnMessage ? "justify-end" : "justify-start"
-                  }`}
-                >
-                  {!isOwnMessage && (
-                    <div className="mr-2 h-8 w-8 self-end bg-blue-700 rounded-full flex items-center justify-center text-sm">
-                      {message.username.charAt(0).toUpperCase()}
-                    </div>
-                  )}
+                return (
                   <div
-                    className={`max-w-[80%] rounded-lg p-3 ${
-                      isOwnMessage
-                        ? "bg-gradient-to-r from-green-600 to-green-700 text-white"
-                        : "bg-gray-800 text-white"
+                    key={message.user_id}
+                    className={`flex ${
+                      isOwnMessage ? "justify-end" : "justify-start"
                     }`}
                   >
                     {!isOwnMessage && (
-                      <div className="mb-1 text-xs font-medium text-blue-400">
-                        {message.username}
+                      <div className="mr-2 h-8 w-8 self-end bg-blue-700 rounded-full flex items-center justify-center text-sm">
+                        {message.username.charAt(0).toUpperCase()}
                       </div>
                     )}
-                    <p>{message.message}</p>
                     <div
-                      className={`mt-1 text-right text-xs opacity-70 ${
-                        isOwnMessage ? "text-gray-200" : "text-gray-400"
+                      className={`max-w-[80%] rounded-lg p-3 ${
+                        isOwnMessage
+                          ? "bg-gradient-to-r from-green-600 to-green-700 text-white"
+                          : "bg-gray-800 text-white"
                       }`}
                     >
-                      {formatTime(message.timestamp)}
+                      {!isOwnMessage && (
+                        <div className="mb-1 text-xs font-medium text-blue-400">
+                          {message.username}
+                        </div>
+                      )}
+                      <p>{message.message}</p>
+                      <div
+                        className={`mt-1 text-right text-xs opacity-70 ${
+                          isOwnMessage ? "text-gray-200" : "text-gray-400"
+                        }`}
+                      >
+                        {formatTime(message.timestamp)}
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-            <div ref={messagesEndRef} />
-          </div>
+                );
+              })}
+              <div ref={messagesEndRef} />
+            </div>
+          )}
         </div>
-
         {/* Members Sidebar (Desktop) */}
         <div className="hidden w-64 border-l border-green-800 bg-gray-900 p-4 md:block">
           <h2 className="mb-4 text-lg font-semibold text-green-500">
@@ -357,13 +374,13 @@ const ChatRoom = () => {
                   {member.username.charAt(0).toUpperCase()}
                 </div>
                 <span>
-                  {member.username} {member.userId === creator.id && "(You)"}
+                  {member.username}{" "}
+                  {member.userId === auth?.user?.id && "(You)"}
                 </span>
               </div>
             ))}
           </div>
         </div>
-
         {/* Mobile Members Sidebar */}
         {showMobileMembers && (
           <div className="absolute right-0 top-16 bottom-16 w-64 border-l border-green-800 bg-gray-900 p-4 md:hidden z-10">
@@ -422,22 +439,44 @@ const ChatRoom = () => {
           />
           <button
             type="submit"
-            disabled={!newMessage.trim()}
+            disabled={!newMessage.trim() || sending}
             className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-md hover:from-blue-700 hover:to-blue-800 transition-colors disabled:opacity-50 flex items-center justify-center"
           >
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
-              />
-            </svg>
+            {sending ? (
+              <svg
+                className="h-4 w-4 animate-spin"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  strokeWidth="4"
+                ></circle>
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                ></path>
+              </svg>
+            ) : (
+              <svg
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+                />
+              </svg>
+            )}
           </button>
         </form>
       </div>
