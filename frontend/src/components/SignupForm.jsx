@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import Navbar from "./Navbar";
 
 const SignupForm = () => {
   const navigate = useNavigate();
@@ -48,7 +47,6 @@ const SignupForm = () => {
 
   return (
     <>
-    <Navbar />
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-black to-gray-900">
       <div className="w-[400px] border border-green-800 bg-gray-900 text-white rounded-lg">
         <div className="p-6 pb-2">

@@ -1,4 +1,3 @@
-import { error } from "console";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();

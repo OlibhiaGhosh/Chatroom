@@ -35,6 +35,13 @@ const CreateChatroom = () => {
         { signal: controller.signal }
       );
       const newChatroomId = response.data.chatroom.room_id;
+      const userChatroomResponse = await axiosPrivate.post(
+        "/api/userchatroom/join-userChatroom",
+        {
+          chatroomId: newChatroomId 
+        },
+        { signal: controller.signal }
+      )
       const link = `${window.location.origin}/chatroom/${newChatroomId}`;
 
       setChatroomId(newChatroomId);

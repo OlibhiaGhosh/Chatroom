@@ -56,7 +56,7 @@ const ChatRoom = () => {
         console.log("🎯 getChatroomdata response:", chatroomResponse.data);
         try {
           const userResponse = await axiosPrivate.post(
-            `/api/auth/getUserdatabyId/${chatroomResponse.data.chatroomDetails.creatorId}`,
+            `/api/auth/getUserdatabyId/${chatroomResponse.data.chatroomDetails.creatorId}`, //This can be omitted by adding creator details to the above api call using joining
             {},
             {
               signal: controller.signal, // Pass the abort signal to the request

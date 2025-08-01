@@ -21,6 +21,13 @@ const JoinChatroom = () => {
         }
       );
       console.log("Join chatroom successful:", response.data);
+      const userChatroomResponse = await axiosPrivate.post(
+        "/api/userchatroom/join-userChatroom",
+        {
+          chatroomId: chatroomId 
+        },
+        { signal: controller.signal }
+      )
       isMounted && setIsLoading(false);
       navigate(`/chatroom/${chatroomId}`, { replace: true });
       return;

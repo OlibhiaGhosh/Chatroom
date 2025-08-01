@@ -24,3 +24,9 @@ export interface members_schema{
     userId: string;
     username: string;
 }
+export interface userChatroom {
+    id: string;
+    userId: string;
+    chatroomId: string;
+    createdAt: Date
+}

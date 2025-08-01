@@ -31,16 +31,15 @@ const Dashboard = () => {
       }
 
       setUser(currentUser);
-        console.log("🎯 About to call getChatroomdatabyCreatorid");
-        const chatroomsResponse = await axiosPrivate.post(
-          '/api/chatroom/get-chatroomdatabyCreatorid', {},
+        const getuserchatroomresponse = await axiosPrivate.post(
+          '/api/userchatroom/get-userChatroom',
           {
             signal: controller.signal, // Pass the abort signal to the request
           }
         );
-        const chatroomsData = await chatroomsResponse.data;
-        console.log("🎯 getChatroomdatabyCreatorid response:", chatroomsData);
-        isMounted && setChatrooms(chatroomsData.chatrooms);
+        const chatroomList = await getuserchatroomresponse.data.chatrooms;
+        console.log("🎯 get-userChatroom response:", chatroomList);
+        isMounted && setChatrooms(chatroomList);
         isMounted && setLoading(false);
         return;
       } catch (error) {
@@ -216,7 +215,7 @@ const Dashboard = () => {
             <div className="flex items-center justify-center border-dashed border-green-800 bg-gray-900 rounded-lg p-6 transition-all hover:border-green-600">
               <button
                 onClick={handleCreateChatroom}
-                className="h-full w-full flex flex-col items-center gap-2 text-green-500 hover:bg-green-900/20 hover:text-green-400 transition-colors rounded-md p-4"
+                className="h-full w-full flex flex-col items-center justify-center gap-2 text-green-500 hover:bg-green-900/20 hover:text-green-400 transition-colors rounded-md p-4"
               >
                 <svg
                   className="h-8 w-8"
