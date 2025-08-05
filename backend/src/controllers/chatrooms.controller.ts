@@ -13,7 +13,7 @@ async function createChatroom(req: any, res: any) {
         name,
         description: description || null,
         creatorId: id,
-        members: [{ userId: id, username: username }],
+        members: [{ userId: id, username: username}],
       },
     });
     console.log(
@@ -84,6 +84,14 @@ async function joinChatroom(req: any, res: any) {
     });
     if (!chatroom) {
       return res.status(404).json({ message: "Chatroom not found" });
+    }
+    const memberArray = chatroom.members
+    const memberExists = memberArray.find((member:any) => {member?.userId === id})
+    if(memberExists){
+      return res.status(200).json({
+          message: "User " + username + " joined the chatroom successfully",
+          chatroomDetails: chatroom,
+        });
     }
     const chatroomDetails = await prisma.chatroom.update({
       where: { room_id: chatroomId },

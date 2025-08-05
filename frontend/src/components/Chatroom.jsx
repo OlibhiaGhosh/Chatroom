@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import useAxiosPrivate from "../hooks/useAxiosPrivate";
 import useAuth from "../hooks/useAuth";
@@ -132,16 +132,13 @@ const ChatRoom = () => {
       socket.emit("disconnected", {
         roomId: chatroomId,
         username: auth?.user?.username,
+        userId: auth?.user?.id,
       });
     };
-  }, [chatroomId]);
+  }, [chatroomId, auth?.user, axiosPrivate, navigate, location.pathname]);
 
-  useEffect(() => {
-    const handleUserJoined = (data) => {
-      console.log("From socket:", data.message);
-    };
-
-    const handleNewMessage = (data) => {
+  const handleNewMessage = useCallback(
+    (data) => {
       console.log("New message received:", data);
       setMessages((prevMessages) => [
         ...prevMessages,
@@ -152,24 +149,66 @@ const ChatRoom = () => {
           timestamp: new Date(),
         },
       ]);
-    };
+    },
+    [chatroomId]
+  );
 
-    socket.on("user_joined", (data) => {if (data.roomId === chatroomId) handleUserJoined(data)});
-    socket.on("new_message", (data) => {if (data.roomId === chatroomId) handleNewMessage(data)});
+  const handleUserJoined = useCallback(
+    (data) => {
+      console.log("From socket:", data.message);
+      setMembers((prevMembers) => {
+        const alreadyExists = prevMembers.some(
+          (member) => member.userId === data.userId
+        );
+        if (alreadyExists) return prevMembers;
+
+        return [
+          ...prevMembers,
+          {
+            userId: data.userId,
+            username: data.username,
+            online: true, // optional
+          },
+        ];
+      });
+    },
+    [chatroomId]
+  );
+  useEffect(() => {
+    // const handleUserDisconnected = (data) => {
+    //   console.log("From socket:", data.message);
+    //   const newMemberArray = members.map((member) => {
+    //     if (member.userId === data.userId) {
+    //       member.online = false;
+    //     }
+    //   });
+    //   setMembers(newMemberArray);
+    // };
+    socket.on("user_joined", (data) => {
+      if (data.roomId === chatroomId) handleUserJoined(data);
+    });
+    socket.on("new_message", (data) => {
+      if (data.roomId === chatroomId) handleNewMessage(data);
+    });
+    // socket.on("user_disconnected", (data) => {
+    //   if (data.roomId === chatroomId) handleUserDisconnected(data);
+    // });
 
     return () => {
       socket.off("user_joined", handleUserJoined);
       socket.off("new_message", handleNewMessage);
+      // socket.off("user_disconnected", handleUserDisconnected);
     };
-  }, [chatroomId]);
+  }, [chatroomId, handleNewMessage, handleUserJoined]);
 
   useEffect(() => {
     if (!auth?.user?.username) return; // don’t run until we know who you are
     socket.emit("join_room", {
       roomId: chatroomId,
+      userId: auth.user.id,
       username: auth.user.username,
     });
-  }, [chatroomId, auth?.user?.username]);
+  }, [chatroomId, auth?.user?.id, auth?.user?.username]);
 
   useEffect(() => {
     scrollToBottom();
@@ -180,6 +219,7 @@ const ChatRoom = () => {
   };
 
   const handleSendMessage = async (e) => {
+    console.log("send clicked");
     e.preventDefault();
     if (sending || !newMessage.trim()) return;
 
@@ -222,7 +262,6 @@ const ChatRoom = () => {
       </div>
     );
   }
-  console.log("Creator:", creator);
   return (
     <div className="flex h-screen flex-col bg-gradient-to-b from-black to-gray-900 text-white">
       {/* Header */}
@@ -251,12 +290,12 @@ const ChatRoom = () => {
               <h1 className="text-xl font-bold text-green-500">
                 {chatroomName}
               </h1>
-              <div className="flex items-center gap-2">
+              {/* <div className="flex items-center gap-2">
                 <span className="px-2 py-1 text-xs border border-blue-500 text-blue-400 rounded flex items-center">
                   <div className="mr-1 h-2 w-2 rounded-full bg-green-500"></div>
                   {getOnlineCount()} online
                 </span>
-              </div>
+              </div> */}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -319,7 +358,7 @@ const ChatRoom = () => {
 
                 return (
                   <div
-                    key={message.user_id}
+                    key={`${message.user_id}-${new Date(message.timestamp).toISOString() || idx}`}
                     className={`flex ${
                       isOwnMessage ? "justify-end" : "justify-start"
                     }`}

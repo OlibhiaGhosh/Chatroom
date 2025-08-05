@@ -58,7 +58,7 @@ export const initSocket = (server: HttpServer) => {
   io.on("connection", (socket) => {
     console.log("🟢 New client connected:", socket.id);
 
-    socket.on("join_room", ({ roomId, username }) => {
+    socket.on("join_room", ({ roomId, username, userId }) => {
       if (!roomId || !username) {
         return console.log("Missing roomId or username");
       }
@@ -67,15 +67,19 @@ export const initSocket = (server: HttpServer) => {
       console.log(`👤 ${username} joined room ${roomId}`);
       io.to(roomId).emit("user_joined", {
         roomId: roomId,
+        userId: userId,
         username: username,
         message: `${username} has joined the room`,
       });
     });
 
-    socket.on("disconnected", ({ roomId, username }) => {
+    socket.on("disconnected", ({ roomId, username, userId }) => {
       console.log("🔴 Disconnected:", socket.id);
       if (roomId && username) {
         io.to(roomId).emit("user_disconnected", {
+          roomId: roomId,
+          userId: userId,
+          username: username,
           message: `${username} has disconnected`,
         });
       }
