@@ -38,6 +38,7 @@ model Chatroom {
 
   user         User           @relation(fields: [creatorId], references: [id])
   UserChatroom UserChatroom[]
+  messages     message[]
 }
 
 model UserChatroom {
@@ -45,11 +46,13 @@ model UserChatroom {
   userId     String   
   chatroomId String
   createdAt  DateTime @default(now())
-  user       User     @relation(fields: [userId], references: [id])
-  chatroom   Chatroom @relation(fields: [chatroomId], references: [room_id])
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatroom   Chatroom @relation(fields: [chatroomId], references: [room_id], onDelete: Cascade)
+  @@unique([userId, chatroomId]) // composite unique
 }
 
 model message {
   chatroomId String @id
   content Json[] //Each element is like {"message":String ,"user_id":String,"username":String,"timestamp":Date} 
+  chatroom   Chatroom @relation(fields: [chatroomId], references: [room_id], onDelete: Cascade)
 }

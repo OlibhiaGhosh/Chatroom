@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import useAxiosPrivate from "../hooks/useAxiosPrivate";
-import axios from "axios";
 import Navbar from "./Navbar";
 import useAuth from "../hooks/useAuth";
+import toast from "react-hot-toast";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -21,18 +21,22 @@ const Dashboard = () => {
       setLoading(true); // Set loading at the start
       try {
         let currentUser = auth?.user;
-      if (!currentUser) {
-        // 🔁 Get user from backend if not present in context
-        const userResponse = await axiosPrivate.post("/api/auth/getUserdata", {}, {
-          signal: controller.signal,
-        });
-        currentUser = userResponse.data.user;
-        setAuth(prev => ({ ...prev, user: currentUser }));
-      }
+        if (!currentUser) {
+          // 🔁 Get user from backend if not present in context
+          const userResponse = await axiosPrivate.post(
+            "/api/auth/getUserdata",
+            {},
+            {
+              signal: controller.signal,
+            }
+          );
+          currentUser = userResponse.data.user;
+          setAuth((prev) => ({ ...prev, user: currentUser }));
+        }
 
-      setUser(currentUser);
+        setUser(currentUser);
         const getuserchatroomresponse = await axiosPrivate.post(
-          '/api/userchatroom/get-userChatroom',
+          "/api/userchatroom/get-userChatroom",
           {
             signal: controller.signal, // Pass the abort signal to the request
           }
@@ -44,7 +48,7 @@ const Dashboard = () => {
         return;
       } catch (error) {
         console.error("Error fetching data:", error);
-        navigate('/login', { state: { from: location }, replace: true });
+        navigate("/login", { state: { from: location }, replace: true });
       }
     };
 
@@ -59,9 +63,30 @@ const Dashboard = () => {
     navigate("/create-chatroom");
   };
 
-
-  const handleDeleteChatroom = (id) => {
-    setChatrooms(chatrooms.filter((room) => room.id !== id));
+  const handleDeleteChatroom = async (id) => {
+    const controller = new AbortController();
+    try {
+      const response = await axiosPrivate.delete(
+        `/api/userchatroom/delete-chatroom/${id}`,
+        {
+          signal: controller.signal,
+        }
+      );
+      console.log("chatroom deleted successfully", response);
+      setChatrooms(chatrooms.filter((room) => room.room_id !== id));
+      console.log("Chatrooms after deleting one: ", chatrooms);
+      
+    } catch (error) {
+      console.error("Error in deleting chatroom");
+      toast("Failed to delete chatroom. Try Again!", {
+        duration: 2000,
+        position: "bottom-right",
+        removeDelay: 1000,
+      });
+    }
+    return () => {
+      controller.abort();
+    };
   };
 
   const handleJoinChatroom = (id) => {
@@ -162,7 +187,7 @@ const Dashboard = () => {
                       {chatroom.name}
                     </h3>
                     <div className="relative">
-                      <button className="h-8 w-8 p-0 text-gray-400 hover:text-white">
+                      {/* <button className="h-8 w-8 p-0 text-gray-400 hover:text-white">
                         <svg
                           className="h-4 w-4"
                           fill="none"
@@ -174,6 +199,30 @@ const Dashboard = () => {
                             strokeLinejoin="round"
                             strokeWidth={2}
                             d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
+                          />
+                        </svg>
+                      </button> */}
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          alert(
+                            "Are you sure you want to delete this chatroom?"
+                          );
+                          handleDeleteChatroom(chatroom.room_id);
+                        }}
+                        className="h-8 w-8 p-0 text-gray-400 hover:text-red-700"
+                      >
+                        <svg
+                          className="h-4 w-4"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3m-4 0h14"
                           />
                         </svg>
                       </button>

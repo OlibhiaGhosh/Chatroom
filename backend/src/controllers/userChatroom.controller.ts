@@ -83,4 +83,39 @@ async function getChatroomfromUserChatroomTable(req: any, res: any) {
   }
 }
 
-export { joinUserChatroomTable, getChatroomfromUserChatroomTable };
+async function deleteChatroom(req: any, res: any) {
+  const chatroomId: string = req.params.id;
+  const userId = req.user.id;
+  try {
+    if (!chatroomId || !userId) {
+      return res.status(400).json({ message: "Chatroom ID and userId is required" });
+    }
+    const chatroom = await prisma.userChatroom.delete({
+      where: {
+        userId_chatroomId: {
+          userId: userId,
+          chatroomId: chatroomId,
+        },
+      },
+    });
+    if (!chatroom) {
+      return res.status(404).json({ message: "Chatroom not found" });
+    }
+    console.log("Chatroom deleted successfully");
+    return res.status(200).json({
+      message: "Chatroom deleted successfully",
+      chatroom,
+    });
+  } catch (error) {
+    console.error("Error deleting chatroom:", error);
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+}
+
+export {
+  joinUserChatroomTable,
+  getChatroomfromUserChatroomTable,
+  deleteChatroom,
+};

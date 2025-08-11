@@ -24,7 +24,9 @@ const ChatRoom = () => {
   const { auth, setAuth } = useAuth();
   useEffect(() => {
     let isMounted = true; // Set the mounted flag to true
-    const controller = new AbortController(); // on unmounting all the pending requests will be aborted
+    // const controller = new AbortController(); // on unmounting all the pending requests will be aborted
+    const isCancelError = (err) =>
+      err?.code === "ERR_CANCELED" || err?.name === "CanceledError";
     console.log(`Chatroom ID: ${chatroomId}`);
     const fetchChatroomdata = async () => {
       try {
@@ -36,68 +38,36 @@ const ChatRoom = () => {
             const userResponse = await axiosPrivate.post(
               "/api/auth/getUserdata",
               {},
-              {
-                signal: controller.signal,
-              }
+              { signal: new AbortController().signal }
             );
             currentUser = userResponse.data.user;
             setAuth((prev) => ({ ...prev, user: currentUser }));
           }
         } catch (error) {
+          if (isCancelError(error)) return;
           console.error("Error fetching user data:", error);
         }
-        const chatroomResponse = await axiosPrivate.post(
-          `/api/chatroom/get-chatroomdatabyChatroomid/${chatroomId}`,
-          {},
-          {
-            signal: controller.signal, // Pass the abort signal to the request
-          }
-        );
-        console.log("🎯 getChatroomdata response:", chatroomResponse.data);
         try {
-          const userResponse = await axiosPrivate.post(
-            `/api/auth/getUserdatabyId/${chatroomResponse.data.chatroomDetails.creatorId}`, //This can be omitted by adding creator details to the above api call using joining
+          const chatroomResponse = await axiosPrivate.post(
+            `/api/chatroom/get-chatroomdatabyChatroomid/${chatroomId}`,
             {},
-            {
-              signal: controller.signal, // Pass the abort signal to the request
-            }
+            { signal: new AbortController().signal }
           );
-          console.log("🎯 getUserdatabyId response:", userResponse.data);
-          console.log("Creator username:", userResponse?.data?.user?.username);
-          isMounted && setCreator(userResponse?.data?.user);
-        } catch (error) {
-          console.error("Error fetching creator data:", error);
-          isMounted && setError("Failed to fetch creator data.");
-          navigate("/login", {
-            state: { from: location.pathname },
-            replace: true,
-          });
-        }
-        try {
-          const messagesResponse = await axiosPrivate.get(
-            `/api/messages/get-messages/${chatroomId}`,
-            {
-              signal: controller.signal, // Pass the abort signal to the request
-            }
+          console.log("🎯 getChatroomdata response:", chatroomResponse.data);
+          console.log(
+            "Creator username:",
+            chatroomResponse?.data?.User?.username
           );
-          console.log("🎯 getMessages response:", messagesResponse.data);
-          isMounted && setMessages(messagesResponse.data.content);
-        } catch (error) {
-          console.error("error in fetching messages:", error);
-          isMounted && setMessages([]);
-        }
-
-        isMounted &&
+          isMounted && setCreator(chatroomResponse?.data?.chatroomDetails?.user);
+          isMounted &&
           setChatroomName(chatroomResponse?.data?.chatroomDetails?.name);
         isMounted &&
           setMembers(chatroomResponse?.data?.chatroomDetails?.members);
-        isMounted && setIsConnected(true);
-        isMounted && setLoading(false);
-        return;
-      } catch (error) {
-        // isMounted && setLoading(true);
-        console.error("Error fetching data:", error);
-        if (
+        } catch (error) {
+          if (isCancelError(error)) return;
+          console.error("Error fetching creator data:", error);
+          isMounted && setError("Failed to fetch creator data.");
+          if (
           error.response?.data?.message ==
           "User is not a member of this chatroom"
         ) {
@@ -123,12 +93,35 @@ const ChatRoom = () => {
             replace: true,
           });
         }
+        }
+        try {
+          const messagesResponse = await axiosPrivate.get(
+            `/api/messages/get-messages/${chatroomId}`,
+            { signal: new AbortController().signal }
+          );
+          console.log("🎯 getMessages response:", messagesResponse.data);
+          isMounted && setMessages(messagesResponse.data.content);
+        } catch (error) {
+          if (isCancelError(error)) return;
+          console.error("error in fetching messages:", error);
+          isMounted && setMessages([]);
+        }
+        isMounted && setIsConnected(true);
+        isMounted && setLoading(false);
+        return;
+      } catch (error) {
+        if (isCancelError(error)) return;
+        console.error("Error fetching data:", error);
+          navigate("/login", {
+            state: { from: location.pathname },
+            replace: true,
+          });
       }
     };
     fetchChatroomdata();
     return () => {
       isMounted = false;
-      controller.abort();
+      // controller.abort();
       socket.emit("disconnected", {
         roomId: chatroomId,
         username: auth?.user?.username,
@@ -139,6 +132,7 @@ const ChatRoom = () => {
 
   const handleNewMessage = useCallback(
     (data) => {
+      if (data.roomId !== chatroomId) return;
       console.log("New message received:", data);
       setMessages((prevMessages) => [
         ...prevMessages,
@@ -155,6 +149,7 @@ const ChatRoom = () => {
 
   const handleUserJoined = useCallback(
     (data) => {
+      if (data.roomId !== chatroomId) return;
       console.log("From socket:", data.message);
       setMembers((prevMembers) => {
         const alreadyExists = prevMembers.some(
@@ -175,39 +170,23 @@ const ChatRoom = () => {
     [chatroomId]
   );
   useEffect(() => {
-    // const handleUserDisconnected = (data) => {
-    //   console.log("From socket:", data.message);
-    //   const newMemberArray = members.map((member) => {
-    //     if (member.userId === data.userId) {
-    //       member.online = false;
-    //     }
-    //   });
-    //   setMembers(newMemberArray);
-    // };
-    socket.on("user_joined", (data) => {
-      if (data.roomId === chatroomId) handleUserJoined(data);
-    });
-    socket.on("new_message", (data) => {
-      if (data.roomId === chatroomId) handleNewMessage(data);
-    });
-    // socket.on("user_disconnected", (data) => {
-    //   if (data.roomId === chatroomId) handleUserDisconnected(data);
-    // });
-
+    socket.on("user_joined", handleUserJoined);
+    socket.on("new_message", handleNewMessage);
     return () => {
       socket.off("user_joined", handleUserJoined);
       socket.off("new_message", handleNewMessage);
-      // socket.off("user_disconnected", handleUserDisconnected);
     };
-  }, [chatroomId, handleNewMessage, handleUserJoined]);
-
+  }, [handleNewMessage, handleUserJoined]);
+  const joinedRef = useRef(false);
   useEffect(() => {
     if (!auth?.user?.username) return; // don’t run until we know who you are
+    if (joinedRef.current) return;
     socket.emit("join_room", {
       roomId: chatroomId,
       userId: auth.user.id,
       username: auth.user.username,
     });
+    joinedRef.current = true;
   }, [chatroomId, auth?.user?.id, auth?.user?.username]);
 
   useEffect(() => {
@@ -358,7 +337,9 @@ const ChatRoom = () => {
 
                 return (
                   <div
-                    key={`${message.user_id}-${new Date(message.timestamp).toISOString() || idx}`}
+                    key={`${message.user_id}-${
+                      new Date(message.timestamp).toISOString() || idx
+                    }`}
                     className={`flex ${
                       isOwnMessage ? "justify-end" : "justify-start"
                     }`}

@@ -4,6 +4,7 @@ import axios from "../axios/axios";
 import useAuth from "../hooks/useAuth";
 import Navbar from "./Navbar";
 import { socket } from "../socket"; // Import the socket instance
+import toast from "react-hot-toast";
 
 const LoginForm = () => {
   const { auth, setAuth } = useAuth();
@@ -62,17 +63,28 @@ const LoginForm = () => {
       const errorMessage =
         error.response?.data?.message || "Login failed. Please try again.";
       if (errorMessage == "User not found!") {
-        setError("User not found! Please check your username.");
-        navigate("/signup", {
-          state: { from: location.pathname },
-          replace: true,
-        });
+        setError("Username not found! Please check your username.");
+        toast(errorMessage, {
+        duration: 2000,
+        position: "bottom-right",
+        removeDelay: 1000,
+      });
       } else if (errorMessage == "Internal server error") {
         setError("Internal server error. Please try again later.");
+        toast(errorMessage, {
+        duration: 2000,
+        position: "bottom-right",
+        removeDelay: 1000,
+      });
         navigate("/", { state: { from: location.pathname }, replace: true });
       } else {
         // Other error
         setError(errorMessage);
+        toast(errorMessage, {
+        duration: 2000,
+        position: "bottom-right",
+        removeDelay: 1000,
+      });
       }
     } finally {
       setIsLoading(false);

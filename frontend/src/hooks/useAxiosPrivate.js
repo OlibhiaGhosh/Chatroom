@@ -1,11 +1,11 @@
 import { axiosPrivate } from "../axios/axios";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import useRefreshToken from "./useRefreshToken";
 import useAuth from "./useAuth";
 import { useNavigate } from "react-router-dom";
 
 const useAxiosPrivate = () => {
-  const refresh = useRefreshToken();
+  const refresh = useCallback(useRefreshToken(), [])
   const { auth } = useAuth();
   const navigate = useNavigate();
 
@@ -37,7 +37,7 @@ const useAxiosPrivate = () => {
             return axiosPrivate(prevRequest);
           } catch (err) {
             // if refresh itself failed, force logout
-            navigate("/login");
+            // navigate("/login");
             return Promise.reject(err);
           }
         }

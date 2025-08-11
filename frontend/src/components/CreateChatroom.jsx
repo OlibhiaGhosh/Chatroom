@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import useAxiosPrivate from "../hooks/useAxiosPrivate";
 import Navbar from "./Navbar";
+import toast from "react-hot-toast"
 
 const CreateChatroom = () => {
   const axiosPrivate = useAxiosPrivate();
@@ -49,6 +50,11 @@ const CreateChatroom = () => {
       setShowLinkDialog(true);
     } catch (error) {
       console.error("Failed to create chatroom:", error);
+      toast("Failed to create chatroom. Try Again!", {
+        duration: 1000,
+        position: "bottom-right",
+        removeDelay: 1000,
+      });
     } finally {
       setIsLoading(false);
     }

@@ -125,5 +125,4 @@ async function getMessages(req: any, res: any) {
     });
   }
 }
-
 export { sendMessage, getMessages };
