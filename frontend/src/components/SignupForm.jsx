@@ -1,11 +1,12 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import toast from "react-hot-toast";
 
 const SignupForm = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [errormessage, setError] = useState(null);
   const [formData, setFormData] = useState({
     username: "",
     email: "",
@@ -32,13 +33,22 @@ const SignupForm = () => {
         formData
       );
       console.log(response.data);
-      alert("Registration successful! Please log in.");
+      toast("Sign Up successful. Now log in!", {
+        duration: 2000,
+        position: "bottom-right",
+        removeDelay: 1000,
+      });
       navigate("/login");
     } catch (error) {
       setError(
         error.response?.data?.message ||
           "Registration failed. Please try again."
       );
+      toast(errormessage, {
+        duration: 2000,
+        position: "bottom-right",
+        removeDelay: 1000,
+      });
       console.error("Registration failed:", error);
     } finally {
       setIsLoading(false);
@@ -46,6 +56,7 @@ const SignupForm = () => {
   };
 
   return (
+    <>
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-black to-gray-900">
       <div className="w-[400px] border border-green-800 bg-gray-900 text-white rounded-lg">
         <div className="p-6 pb-2">
@@ -177,8 +188,8 @@ const SignupForm = () => {
               >
                 {isLoading ? "Creating account..." : "Sign Up"}
               </button>
-              {error && (
-                <div className="text-red-500 text-sm mt-2">{error}</div>
+              {errormessage && (
+                <div className="text-red-500 text-sm mt-2">{errormessage}</div>
               )}
             </div>
           </form>
@@ -202,6 +213,7 @@ const SignupForm = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 

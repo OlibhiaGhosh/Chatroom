@@ -1,16 +1,21 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import Navbar from './Navbar';
+import useAuth from '../hooks/useAuth';
 
 const LandingPage = () => {
   const navigate = useNavigate();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const { auth } = useAuth();
 
   useEffect(() => {
     setMounted(true);
-    const token = localStorage.getItem('token');
-    if (token) {
+    if (auth.user) {
       setIsLoggedIn(true);
+    }
+    return () => {
+      setMounted(false);
     }
   }, []);
 
@@ -26,43 +31,11 @@ const LandingPage = () => {
     navigate('/dashboard');
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setIsLoggedIn(false);
-    navigate('/');
-  };
 
   if (!mounted) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-black to-gray-900 text-white">
-        <nav className="border-b border-green-800 bg-black/95 backdrop-blur-sm sticky top-0 z-50">
-          <div className="container mx-auto px-4">
-            <div className="flex h-16 items-center justify-between">
-              <div className="flex items-center">
-                <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500">
-                  ChatConnect
-                </h1>
-              </div>
-              <div className="hidden md:flex items-center space-x-8">
-                <button className="text-gray-300 hover:text-green-400 transition-colors">Home</button>
-                <button className="text-gray-300 hover:text-green-400 transition-colors">About</button>
-                <button className="text-gray-300 hover:text-green-400 transition-colors">Contact</button>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="flex gap-2">
-                  <button className="px-4 py-2 border border-blue-600 text-blue-400 rounded-md hover:bg-blue-900/20 hover:text-blue-300 transition-colors">
-                    Login
-                  </button>
-                  <button className="px-4 py-2 bg-gradient-to-r from-green-500 to-green-700 text-white rounded-md hover:from-green-600 hover:to-green-800 transition-colors">
-                    Sign Up
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </nav>
-
+        <Navbar />
         <div className="container mx-auto px-4 py-16">
           <div className="mb-16 text-center">
             <h1 className="mb-4 text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500">
@@ -92,71 +65,7 @@ const LandingPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-black to-gray-900 text-white">
-      <nav className="border-b border-green-800 bg-black/95 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4">
-          <div className="flex h-16 items-center justify-between">
-            <div className="flex items-center">
-              <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500">
-                ChatConnect
-              </h1>
-            </div>
-
-            <div className="hidden md:flex items-center space-x-8">
-              <button onClick={() => navigate('/')} className="text-gray-300 hover:text-green-400 transition-colors">
-                Home
-              </button>
-              {isLoggedIn && (
-                <>
-                  <button
-                    onClick={() => navigate('/dashboard')}
-                    className="text-gray-300 hover:text-green-400 transition-colors"
-                  >
-                    Dashboard
-                  </button>
-                  <button
-                    onClick={() => navigate('/create-chatroom')}
-                    className="text-gray-300 hover:text-green-400 transition-colors"
-                  >
-                    Create Room
-                  </button>
-                </>
-              )}
-              <button className="text-gray-300 hover:text-green-400 transition-colors">About</button>
-              <button className="text-gray-300 hover:text-green-400 transition-colors">Contact</button>
-            </div>
-
-            <div className="flex items-center gap-4">
-              {!isLoggedIn ? (
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => navigate('/login')}
-                    className="px-4 py-2 border border-blue-600 text-blue-400 rounded-md hover:bg-blue-900/20 hover:text-blue-300 transition-colors"
-                  >
-                    Login
-                  </button>
-                  <button
-                    onClick={() => navigate('/signup')}
-                    className="px-4 py-2 bg-gradient-to-r from-green-500 to-green-700 text-white rounded-md hover:from-green-600 hover:to-green-800 transition-colors"
-                  >
-                    Sign Up
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-4">
-                  <span className="text-blue-400">Welcome!</span>
-                  <button
-                    onClick={handleLogout}
-                    className="px-3 py-1 text-sm border border-red-600 text-red-500 rounded-md hover:bg-red-900/20 hover:text-red-400 transition-colors"
-                  >
-                    Logout
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </nav>
-
+      <Navbar />
       <div className="container mx-auto px-4 py-16">
         <div className="mb-16 text-center">
           <h1 className="mb-4 text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500">

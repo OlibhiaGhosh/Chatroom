@@ -1,4 +1,3 @@
-import { error } from "console";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -14,7 +13,7 @@ async function createChatroom(req: any, res: any) {
         name,
         description: description || null,
         creatorId: id,
-        members: [{ userId: id, username: username }],
+        members: [{ userId: id, username: username}],
       },
     });
     console.log(
@@ -43,6 +42,9 @@ async function getChatroomDatabyChatroomId(req: any, res: any) {
 
     const details = await prisma.chatroom.findUnique({
       where: { room_id: chatroomId },
+      include: {
+          user: true,
+        },
     });
     if (!details) {
       return res.status(404).json({ message: "Chatroom not found" });
@@ -86,6 +88,14 @@ async function joinChatroom(req: any, res: any) {
     if (!chatroom) {
       return res.status(404).json({ message: "Chatroom not found" });
     }
+    const memberArray = chatroom.members
+    const memberExists = memberArray.find((member:any) => {member?.userId === id})
+    if(memberExists){
+      return res.status(200).json({
+          message: "User " + username + " joined the chatroom successfully",
+          chatroomDetails: chatroom,
+        });
+    }
     const chatroomDetails = await prisma.chatroom.update({
       where: { room_id: chatroomId },
           data: {
@@ -115,7 +125,7 @@ async function joinChatroom(req: any, res: any) {
         });
       }
 }
-async function getChatroomDatabyCreatorId(req: any, res: any) {
+async function getChatroomDatabyCreatorId(req: any, res: any) { //for fetching data of dashboard for each user
   const { id: userId } = req.user; 
   try {
     if (!userId) {
@@ -165,35 +175,10 @@ async function getChatrooms(req: any, res: any) {// Extra unnecessary route
     });
   }
 }
-async function deleteChatroom(req: any, res: any) {
-  const { chatroomId } = req.body;
-  try {
-    if (!chatroomId) {
-      return res.status(400).json({ message: "Chatroom ID is required" });
-    }
-    const chatroom = await prisma.chatroom.delete({
-      where: { room_id: chatroomId },
-    });
-    if (!chatroom) {
-      return res.status(404).json({ message: "Chatroom not found" });
-    }
-    console.log("Chatroom deleted successfully");
-    return res.status(200).json({
-      message: "Chatroom deleted successfully",
-      chatroom,
-    });
-  } catch (error) {
-    console.error("Error deleting chatroom:", error);
-    return res.status(500).json({
-      message: "Internal server error",
-    });
-  }
-}
 export {
   createChatroom,
   getChatroomDatabyChatroomId,
   getChatroomDatabyCreatorId,
   joinChatroom,
   getChatrooms,
-  deleteChatroom,
 };

@@ -1,174 +1,239 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import useAxiosPrivate from '../hooks/useAxiosPrivate';
+import { useEffect, useState, useRef, useCallback } from "react";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
+import useAxiosPrivate from "../hooks/useAxiosPrivate";
+import useAuth from "../hooks/useAuth";
+import { use } from "react";
+import { socket } from "../socket";
 const ChatRoom = () => {
   const navigate = useNavigate();
   const { id: chatroomId } = useParams();
-  const [creator, setCreator] = useState(null);
-  const [chatroomName, setChatroomName] = useState('Loading...');
+  const [creator, setCreator] = useState({});
+  const [chatroomName, setChatroomName] = useState("Loading...");
   const [messages, setMessages] = useState([]);
+  const [content, setContent] = useState([]);
   const [members, setMembers] = useState([]);
-  const [newMessage, setNewMessage] = useState('');
+  const [newMessage, setNewMessage] = useState("");
   const [isConnected, setIsConnected] = useState(false);
   const [showMobileMembers, setShowMobileMembers] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [join, setJoin] = useState(false);
+  const [sending, setSending] = useState(false);
   const messagesEndRef = useRef(null);
   const axiosPrivate = useAxiosPrivate();
   const location = useLocation();
+  const { auth, setAuth } = useAuth();
   useEffect(() => {
     let isMounted = true; // Set the mounted flag to true
-    const controller = new AbortController(); // on unmounting all the pending requests will be aborted
+    // const controller = new AbortController(); // on unmounting all the pending requests will be aborted
+    const isCancelError = (err) =>
+      err?.code === "ERR_CANCELED" || err?.name === "CanceledError";
     console.log(`Chatroom ID: ${chatroomId}`);
-    
     const fetchChatroomdata = async () => {
-      setLoading(true); // Set loading at the start
       try {
-        const chatroomResponse = await axiosPrivate.post(
-          `/api/chatroom/get-chatroomdatabyChatroomid/${chatroomId}`,
-          {
-            signal: controller.signal, // Pass the abort signal to the request
+        setLoading(true);
+        try {
+          let currentUser = auth?.user;
+          if (!currentUser) {
+            // 🔁 Get user from backend if not present in context
+            const userResponse = await axiosPrivate.post(
+              "/api/auth/getUserdata",
+              {},
+              { signal: new AbortController().signal }
+            );
+            currentUser = userResponse.data.user;
+            setAuth((prev) => ({ ...prev, user: currentUser }));
           }
-        );
-        // if (chatroomResponse.data.message == "User is not a member of this chatroom"){
-        //   console.log("User is not a member of this chatroom");
-        //   isMounted && setJoin(true);
-        //   return;
-        // }
-        console.log("🎯 getChatroomdata response:", chatroomResponse.data);
-        try{
-        const userResponse = await axiosPrivate.post(
-          `/api/auth/getUserdatabyId/${chatroomResponse.data.chatroomDetails.creatorId}`,
-          {
-            signal: controller.signal, // Pass the abort signal to the request
-          }
-        );
-        console.log("🎯 getUserdatabyId response:", userResponse.data);
-        console.log("Creator username:", userResponse?.data?.user?.username);
-        isMounted && setCreator(userResponse?.data?.user?.username);
-        
-      } catch (error) {
-        console.error("Error fetching creator data:", error);
-        isMounted && setError("Failed to fetch creator data.");
-        navigate('/login', { state: { from: location.pathname }, replace: true });
-      }
-        isMounted && setChatroomName(chatroomResponse?.data?.chatroomDetails?.name);
-        isMounted && setMembers(chatroomResponse?.data?.chatroomDetails?.members);
+        } catch (error) {
+          if (isCancelError(error)) return;
+          console.error("Error fetching user data:", error);
+        }
+        try {
+          const chatroomResponse = await axiosPrivate.post(
+            `/api/chatroom/get-chatroomdatabyChatroomid/${chatroomId}`,
+            {},
+            { signal: new AbortController().signal }
+          );
+          console.log("🎯 getChatroomdata response:", chatroomResponse.data);
+          console.log(
+            "Creator username:",
+            chatroomResponse?.data?.User?.username
+          );
+          isMounted && setCreator(chatroomResponse?.data?.chatroomDetails?.user);
+          isMounted &&
+          setChatroomName(chatroomResponse?.data?.chatroomDetails?.name);
+        isMounted &&
+          setMembers(chatroomResponse?.data?.chatroomDetails?.members);
+        } catch (error) {
+          if (isCancelError(error)) return;
+          console.error("Error fetching creator data:", error);
+          isMounted && setError("Failed to fetch creator data.");
+          if (
+          error.response?.data?.message ==
+          "User is not a member of this chatroom"
+        ) {
+          console.log("User is not a member of this chatroom");
+          isMounted && setIsConnected(false);
+          navigate(`/join-chatroom/${chatroomId}`, {
+            state: { from: location.pathname },
+            replace: true,
+          });
+        } else if (
+          error.response?.data?.message == "Chatroom not found" ||
+          error.response?.status === 404 ||
+          error.response?.data?.message == "Chatroom ID is required"
+        ) {
+          isMounted && setError(error.response?.data?.message);
+          navigate("/dashboard", {
+            state: { from: location.pathname },
+            replace: true,
+          });
+        } else {
+          navigate("/login", {
+            state: { from: location.pathname },
+            replace: true,
+          });
+        }
+        }
+        try {
+          const messagesResponse = await axiosPrivate.get(
+            `/api/messages/get-messages/${chatroomId}`,
+            { signal: new AbortController().signal }
+          );
+          console.log("🎯 getMessages response:", messagesResponse.data);
+          isMounted && setMessages(messagesResponse.data.content);
+        } catch (error) {
+          if (isCancelError(error)) return;
+          console.error("error in fetching messages:", error);
+          isMounted && setMessages([]);
+        }
         isMounted && setIsConnected(true);
         isMounted && setLoading(false);
         return;
       } catch (error) {
+        if (isCancelError(error)) return;
         console.error("Error fetching data:", error);
-        if (chatroomResponse.data.message == "User is not a member of this chatroom"){
-          console.log("User is not a member of this chatroom");
-          isMounted && setJoin(true);
-          return;
-        }
-        navigate('/dashboard', { state: { from: location.pathname }, replace: true });
+          navigate("/login", {
+            state: { from: location.pathname },
+            replace: true,
+          });
       }
     };
     fetchChatroomdata();
-    // Mock messages data
-    setMessages([
-      {
-        id: 'msg-1',
-        senderId: 'user-456',
-        senderName: 'Alice',
-        text: 'Hey everyone! Welcome to the new chatroom.',
-        timestamp: new Date(Date.now() - 1000 * 60 * 30),
-      },
-      {
-        id: 'msg-2',
-        senderId: 'user-789',
-        senderName: 'Bob',
-        text: 'Thanks for setting this up!',
-        timestamp: new Date(Date.now() - 1000 * 60 * 25),
-      },
-      {
-        id: 'msg-3',
-        senderId: 'user-123',
-        senderName: 'You',
-        text: 'No problem! Let\'s discuss the project here.',
-        timestamp: new Date(Date.now() - 1000 * 60 * 20),
-      },
-    ]);
-
-    // Simulate receiving a new message
-    const timer = setTimeout(() => {
-      const newMsg = {
-        id: `msg-${Date.now()}`,
-        senderId: 'user-456',
-        senderName: 'Alice',
-        text: 'Just checking if everyone is here?',
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, newMsg]);
-    }, 2000);
-    setLoading(false);
     return () => {
       isMounted = false;
-      controller.abort();
-      clearTimeout(timer);
-    }
-  }, [chatroomId, navigate]);
+      // controller.abort();
+      socket.emit("disconnected", {
+        roomId: chatroomId,
+        username: auth?.user?.username,
+        userId: auth?.user?.id,
+      });
+    };
+  }, [chatroomId, auth?.user, axiosPrivate, navigate, location.pathname]);
+
+  const handleNewMessage = useCallback(
+    (data) => {
+      if (data.roomId !== chatroomId) return;
+      console.log("New message received:", data);
+      setMessages((prevMessages) => [
+        ...prevMessages,
+        {
+          user_id: data.userId,
+          username: data.username,
+          message: data.content,
+          timestamp: new Date(),
+        },
+      ]);
+    },
+    [chatroomId]
+  );
+
+  const handleUserJoined = useCallback(
+    (data) => {
+      if (data.roomId !== chatroomId) return;
+      console.log("From socket:", data.message);
+      setMembers((prevMembers) => {
+        const alreadyExists = prevMembers.some(
+          (member) => member.userId === data.userId
+        );
+        if (alreadyExists) return prevMembers;
+
+        return [
+          ...prevMembers,
+          {
+            userId: data.userId,
+            username: data.username,
+            online: true, // optional
+          },
+        ];
+      });
+    },
+    [chatroomId]
+  );
+  useEffect(() => {
+    socket.on("user_joined", handleUserJoined);
+    socket.on("new_message", handleNewMessage);
+    return () => {
+      socket.off("user_joined", handleUserJoined);
+      socket.off("new_message", handleNewMessage);
+    };
+  }, [handleNewMessage, handleUserJoined]);
+  const joinedRef = useRef(false);
+  useEffect(() => {
+    if (!auth?.user?.username) return; // don’t run until we know who you are
+    if (joinedRef.current) return;
+    socket.emit("join_room", {
+      roomId: chatroomId,
+      userId: auth.user.id,
+      username: auth.user.username,
+    });
+    joinedRef.current = true;
+  }, [chatroomId, auth?.user?.id, auth?.user?.username]);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const handleSendMessage = (e) => {
+  const handleSendMessage = async (e) => {
+    console.log("send clicked");
     e.preventDefault();
+    if (sending || !newMessage.trim()) return;
 
-    if (!newMessage.trim() || !user) return;
-
-    const message = {
-      id: `msg-${Date.now()}`,
-      senderId: user.id,
-      senderName: 'You',
-      text: newMessage,
-      timestamp: new Date(),
-    };
-
-    setMessages([...messages, message]);
-    setNewMessage('');
+    setSending(true);
+    try {
+      const response = await axiosPrivate.post(
+        `/api/messages/send-message/${chatroomId}`,
+        {
+          content: newMessage,
+          username: auth.user.username,
+        }
+      );
+      console.log("Message sent:", response.data);
+      setNewMessage("");
+    } catch (error) {
+      console.error("Error sending message:", error);
+    } finally {
+      setSending(false);
+    }
   };
 
   const formatTime = (date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return new Date(date).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   const handleBack = () => {
-    navigate('/dashboard');
+    navigate("/dashboard");
   };
 
   const getOnlineCount = () => {
     return members.filter((member) => member.online).length;
   };
-  const handleJoinChatroom = () => {
-    setJoin(false);
-  }
-
-  if (join) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-black text-white">
-        <div>Wanna join the chatroom?</div>
-        <button className="ml-2 px-4 py-2 bg-green-500 rounded" onClick={() => handleJoinChatroom()}>Join</button>
-      </div>
-    );
-  }
-
-  if (!creator || !isConnected) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-black text-white">
-        <p>{error}</p>
-      </div>
-    );
-  }
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-black text-white">
@@ -176,7 +241,6 @@ const ChatRoom = () => {
       </div>
     );
   }
-console.log("Creator:", creator);
   return (
     <div className="flex h-screen flex-col bg-gradient-to-b from-black to-gray-900 text-white">
       {/* Header */}
@@ -187,18 +251,30 @@ console.log("Creator:", creator);
               onClick={handleBack}
               className="mr-2 text-blue-400 hover:bg-blue-900/20 hover:text-blue-300 p-1 rounded transition-colors"
             >
-              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 19l-7-7 7-7"
+                />
               </svg>
             </button>
             <div>
-              <h1 className="text-xl font-bold text-green-500">{chatroomName}</h1>
-              <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-green-500">
+                {chatroomName}
+              </h1>
+              {/* <div className="flex items-center gap-2">
                 <span className="px-2 py-1 text-xs border border-blue-500 text-blue-400 rounded flex items-center">
                   <div className="mr-1 h-2 w-2 rounded-full bg-green-500"></div>
                   {getOnlineCount()} online
                 </span>
-              </div>
+              </div> */}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -206,13 +282,33 @@ console.log("Creator:", creator);
               onClick={() => setShowMobileMembers(!showMobileMembers)}
               className="px-3 py-1 text-sm border border-blue-600 text-blue-400 rounded hover:bg-blue-900/20 hover:text-blue-300 transition-colors md:hidden"
             >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              <svg
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 6h16M4 12h16M4 18h16"
+                />
               </svg>
             </button>
             <button className="hidden md:flex items-center px-3 py-1 text-sm border border-blue-600 text-blue-400 rounded hover:bg-blue-900/20 hover:text-blue-300 transition-colors">
-              <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+              <svg
+                className="mr-2 h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"
+                />
               </svg>
               Members ({members.length})
             </button>
@@ -224,86 +320,126 @@ console.log("Creator:", creator);
       <div className="flex flex-1 overflow-hidden">
         {/* Messages Area */}
         <div className="flex-1 overflow-y-auto p-4">
-          <div className='my-4 text-center text-gray-500'>Created by: {creator}</div>
-          <div className="flex flex-col gap-4">
-            {messages.map((message) => {
-              const isOwnMessage = message.senderId === creator.id;
-              const sender = members.find((m) => m.id === message.senderId);
+          <div className="my-4 text-center text-gray-500">
+            Created by: {creator.username}
+          </div>
+          {!messages.length ? (
+            <div className="text-center text-gray-500">
+              No messages yet. Start the conversation!
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {messages.map((message) => {
+                const isOwnMessage = message.user_id === auth?.user?.id;
+                const sender = members.find(
+                  (m) => m.userId === message.user_id
+                );
 
-              return (
-                <div key={message.id} className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
-                  {!isOwnMessage && (
-                    <div className="mr-2 h-8 w-8 self-end bg-blue-700 rounded-full flex items-center justify-center text-sm">
-                      {message.senderName.charAt(0).toUpperCase()}
-                    </div>
-                  )}
+                return (
                   <div
-                    className={`max-w-[80%] rounded-lg p-3 ${
-                      isOwnMessage
-                        ? 'bg-gradient-to-r from-green-600 to-green-700 text-white'
-                        : 'bg-gray-800 text-white'
+                    key={`${message.user_id}-${
+                      new Date(message.timestamp).toISOString() || idx
+                    }`}
+                    className={`flex ${
+                      isOwnMessage ? "justify-end" : "justify-start"
                     }`}
                   >
                     {!isOwnMessage && (
-                      <div className="mb-1 text-xs font-medium text-blue-400">{message.senderName}</div>
+                      <div className="mr-2 h-8 w-8 self-end bg-blue-700 rounded-full flex items-center justify-center text-sm">
+                        {message.username.charAt(0).toUpperCase()}
+                      </div>
                     )}
-                    <p>{message.text}</p>
                     <div
-                      className={`mt-1 text-right text-xs opacity-70 ${
-                        isOwnMessage ? 'text-gray-200' : 'text-gray-400'
+                      className={`max-w-[80%] rounded-lg p-3 ${
+                        isOwnMessage
+                          ? "bg-gradient-to-r from-green-600 to-green-700 text-white"
+                          : "bg-gray-800 text-white"
                       }`}
                     >
-                      {formatTime(message.timestamp)}
+                      {!isOwnMessage && (
+                        <div className="mb-1 text-xs font-medium text-blue-400">
+                          {message.username}
+                        </div>
+                      )}
+                      <p>{message.message}</p>
+                      <div
+                        className={`mt-1 text-right text-xs opacity-70 ${
+                          isOwnMessage ? "text-gray-200" : "text-gray-400"
+                        }`}
+                      >
+                        {formatTime(message.timestamp)}
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-            <div ref={messagesEndRef} />
-          </div>
+                );
+              })}
+              <div ref={messagesEndRef} />
+            </div>
+          )}
         </div>
-
         {/* Members Sidebar (Desktop) */}
         <div className="hidden w-64 border-l border-green-800 bg-gray-900 p-4 md:block">
-          <h2 className="mb-4 text-lg font-semibold text-green-500">Members ({members.length})</h2>
+          <h2 className="mb-4 text-lg font-semibold text-green-500">
+            Members ({members.length})
+          </h2>
           <div key="members-list" className="flex flex-col gap-3">
             {members.map((member) => (
-              <div key={member.id} className="flex items-center gap-2">
-                <div className={`h-2 w-2 rounded-full ${member.online ? 'bg-green-500' : 'bg-gray-500'}`} />
+              <div key={member.userId} className="flex items-center gap-2">
+                <div
+                  className={`h-2 w-2 rounded-full ${
+                    member.online ? "bg-green-500" : "bg-gray-500"
+                  }`}
+                />
                 <div className="h-8 w-8 bg-blue-700 rounded-full flex items-center justify-center text-sm">
                   {member.username.charAt(0).toUpperCase()}
                 </div>
                 <span>
-                  {member.username} {member.id === creator.id && '(You)'}
+                  {member.username}{" "}
+                  {member.userId === auth?.user?.id && "(You)"}
                 </span>
               </div>
             ))}
           </div>
         </div>
-
         {/* Mobile Members Sidebar */}
         {showMobileMembers && (
           <div className="absolute right-0 top-16 bottom-16 w-64 border-l border-green-800 bg-gray-900 p-4 md:hidden z-10">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-green-500">Members ({members.length})</h2>
+              <h2 className="text-lg font-semibold text-green-500">
+                Members ({members.length})
+              </h2>
               <button
                 onClick={() => setShowMobileMembers(false)}
                 className="text-gray-400 hover:text-white"
               >
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
             <div className="flex flex-col gap-3">
               {members.map((member) => (
-                <div key={member.id} className="flex items-center gap-2">
-                  <div className={`h-2 w-2 rounded-full ${member.online ? 'bg-green-500' : 'bg-gray-500'}`} />
+                <div key={member.userId} className="flex items-center gap-2">
+                  <div
+                    className={`h-2 w-2 rounded-full ${
+                      member.online ? "bg-green-500" : "bg-gray-500"
+                    }`}
+                  />
                   <div className="h-6 w-6 bg-blue-700 rounded-full flex items-center justify-center text-xs">
                     {member.username.charAt(0).toUpperCase()}
                   </div>
                   <span className="text-sm">
-                    {member.username} {member.id === user.id && '(You)'}
+                    {member.username} {member.userId === creator.id && "(You)"}
                   </span>
                 </div>
               ))}
@@ -323,12 +459,44 @@ console.log("Creator:", creator);
           />
           <button
             type="submit"
-            disabled={!newMessage.trim()}
+            disabled={!newMessage.trim() || sending}
             className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-md hover:from-blue-700 hover:to-blue-800 transition-colors disabled:opacity-50 flex items-center justify-center"
           >
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-            </svg>
+            {sending ? (
+              <svg
+                className="h-4 w-4 animate-spin"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  strokeWidth="4"
+                ></circle>
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                ></path>
+              </svg>
+            ) : (
+              <svg
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+                />
+              </svg>
+            )}
           </button>
         </form>
       </div>

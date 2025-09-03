@@ -1,11 +1,10 @@
 import express from 'express';
-import { createChatroom, getChatroomDatabyChatroomId, getChatroomDatabyCreatorId, joinChatroom, getChatrooms, deleteChatroom} from '../controllers/chatrooms.controller';
+import { createChatroom, getChatroomDatabyChatroomId, getChatroomDatabyCreatorId, joinChatroom, getChatrooms} from '../controllers/chatrooms.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
 const router = express.Router();
 router.post('/create-chatroom', authMiddleware, createChatroom);
 router.post('/get-chatroomdatabyChatroomid/:id', authMiddleware, getChatroomDatabyChatroomId);
 router.post('/get-chatroomdatabyCreatorid', authMiddleware, getChatroomDatabyCreatorId);
-router.post('/join-chatroom', authMiddleware, joinChatroom);
+router.post('/join-chatroom/:id', authMiddleware, joinChatroom);
 router.post('/get-chatrooms', authMiddleware, getChatrooms);
-router.delete('/delete-chatroom', authMiddleware, deleteChatroom);
 export default router;

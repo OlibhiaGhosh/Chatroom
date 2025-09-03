@@ -5,9 +5,9 @@ import {
   generateRefreshToken,
 } from "../utils/jwt_auth";
 import jwt from "jsonwebtoken";
-import { log } from "console";
 const dotenv = require("dotenv");
 dotenv.config();
+import { getIO } from "../lib/socket";
 
 const prisma = new PrismaClient();
 const cookie_options = {
@@ -98,6 +98,7 @@ async function signup(req: any, res: any) {
 }
 
 async function login(req: any, res: any) {
+  const io = getIO();
   const { username, password } = req.body;
   try {
     if (!username || !password) {
@@ -115,7 +116,6 @@ async function login(req: any, res: any) {
     if (!isMatch) {
       return res.status(401).json({ message: "Invalid Password" });
     }
-    console.log("User logged in successfully");
     const { accessToken } = await generateAccessToken(
       user
     );
@@ -132,9 +132,12 @@ async function login(req: any, res: any) {
     });
     if (!response) {
       return res.status(403).json({
-        message: "Failed to update user tokens",
+        message: "Failed to update user tokens. Try again later.",
       });
     }
+    io.emit("user_logged_in", {
+      message: `${user.username} has logged in`,
+    });
     return res
       .status(200)
       .cookie("refreshToken", refreshToken, refreshToken_cookie_options)

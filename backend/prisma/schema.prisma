@@ -3,6 +3,7 @@
 
 // Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
 generator client {
   provider = "prisma-client-js"
   output   = "../node_modules/.prisma/client"
@@ -37,20 +38,21 @@ model Chatroom {
 
   user         User           @relation(fields: [creatorId], references: [id])
   UserChatroom UserChatroom[]
+  messages     message[]
 }
 
 model UserChatroom {
-  id         String   @id @default(uuid())
-  userId     String
+  id         String @id @default(uuid())
+  userId     String   
   chatroomId String
-  isActive   Boolean  @default(true)
   createdAt  DateTime @default(now())
-  user       User     @relation(fields: [userId], references: [id])
-  chatroom   Chatroom @relation(fields: [chatroomId], references: [room_id])
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatroom   Chatroom @relation(fields: [chatroomId], references: [room_id], onDelete: Cascade)
+  @@unique([userId, chatroomId]) // composite unique
 }
 
 model message {
-  id         String @id @default(uuid())
-  chatroomId String
-  content    Json /// Each element: { user_id: String, message: String }
+  chatroomId String @id
+  content Json[] //Each element is like {"message":String ,"user_id":String,"username":String,"timestamp":Date} 
+  chatroom   Chatroom @relation(fields: [chatroomId], references: [room_id], onDelete: Cascade)
 }
